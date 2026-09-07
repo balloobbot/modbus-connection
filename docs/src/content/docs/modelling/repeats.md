@@ -103,6 +103,29 @@ tree with register counts at both levels therefore polls in three passes — the
 outer count, then the inner counts, then the leaves. Fixed `int` counts add no
 pass at any level; they fold into the enclosing read.
 
+### Where a nested count lives
+
+A nested group's register count shifts with the enclosing instance by default:
+string *i* above reads its cell count at `1 + i * 100`. Pass
+`count_in_block=False` when the count is a point of the outermost layout
+instead, as a SunSpec `NPt` point in the model's fixed block is. Every instance
+then reads it at the same address.
+
+```python
+class Curve(Component):
+    # NPt is at model offset 5, whatever curve this is
+    points = repeating_group(uint16(5), Point, stride=2, count_in_block=False)
+
+
+class VoltVar(Component):
+    n_crv = uint16(4)
+    n_pt = uint16(5)
+    curves = repeating_group(uint16(4), Curve, stride=30)
+```
+
+Without the flag, curve 1 would read its count at `35`. A device that answers
+`0` there silently gives it no points.
+
 ## Scale factors inside the block
 
 By default a scaled field's `scale_register` stays put across instances — it
