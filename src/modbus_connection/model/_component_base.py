@@ -71,13 +71,29 @@ class _ComponentBase(_Readable):
         self._listeners: list[UpdateListener] = []
         self._groups: dict[str, list[Component]] = {}
         self._counts: dict[str, int | None] = {}
+        # the stride each poll-time group's instances were built at
+        self._strides: dict[str, int] = {}
         for name, field in self._static_groups.items():
-            # a static group's count is a fixed int (Component splits the two kinds)
-            count = cast("int", field.count)
-            self._groups[name] = self._build_instances(field, 0, count)
+            # a static group's count and stride are fixed (Component splits the
+            # two kinds)
+            self._groups[name] = self._build_instances(
+                field, 0, cast("int", field.count), cast("int", field.stride)
+            )
+
+    def _root(self) -> _ComponentBase:
+        """The component that owns the outermost block this one sits in."""
+        node: _ComponentBase = self
+        # a ComponentGroup is a parent too, but a pool rather than a layout
+        while isinstance(node._parent, _ComponentBase):
+            node = node._parent
+        return node
 
     def _build_instances(
-        self, field: RepeatingGroupField[Any], start: int, stop: int
+        self,
+        field: RepeatingGroupField[Any],
+        start: int,
+        stop: int,
+        stride: int,
     ) -> list[Component]:
         # instances inherit the parent's block position (base_offset, which
         # also moves scale registers); their own per-instance shift applies to
@@ -88,7 +104,7 @@ class _ComponentBase(_Readable):
             field.component_class(
                 self._unit,
                 base_offset=self._base_offset,
-                _instance_offset=self._instance_offset + i * field.stride,
+                _instance_offset=self._instance_offset + i * stride,
             )
             for i in range(start, stop)
         ]
@@ -130,11 +146,11 @@ class _ComponentBase(_Readable):
         """Read targets for each register-count group's count register."""
         items: list[ReadItem] = []
         for field in self._repeating_fields.values():
+            if isinstance(field.count, int):
+                continue  # placed at poll time, but counted at declaration
             # a register-count group's count is a RegisterField, named for its
             # group at registration so the decoded count lands in ``_counts``
-            resolved = self._resolve(
-                cast("RegisterField[Any]", field.count), self._count_space
-            )
+            resolved = self._resolve(field.count, self._count_space)
             if not field.count_in_block:
                 # the count is a point of the layout that owns the outermost
                 # block, so it stays put while this instance's fields shift
@@ -243,7 +259,7 @@ class _ComponentBase(_Readable):
         await self._refresh_repeating_groups(collect_raw=False)
 
     async def _refresh_repeating_groups(self, *, collect_raw: bool) -> Raw:
-        """Resize register-count groups to the counts just read.
+        """Resize and place the poll-time groups from the values just read.
 
         The instances are part of this component's own plan, so a poll at the
         current size has already read them. A resize invalidates that plan for
@@ -261,14 +277,24 @@ class _ComponentBase(_Readable):
             return raw
         added: list[Component] = []
         resized = False
+        root = self._root()
         for name, field in self._repeating_fields.items():
-            value = self._counts.get(name)
+            value = (
+                field.count if isinstance(field.count, int) else self._counts.get(name)
+            )
             count = max(0, int(value)) if value is not None else 0
             existing = self._groups.get(name, [])
+            if count:
+                stride = field.resolved_stride(root)
+                if stride != self._strides.get(name):
+                    self._strides[name] = stride
+                    existing = []  # a changed stride rebuilds every instance
             if len(existing) == count:
                 continue
             resized = True
-            new = self._build_instances(field, len(existing), count)
+            new = self._build_instances(
+                field, len(existing), count, self._strides[name]
+            )
             self._groups[name] = existing[:count] + new
             added.extend(new)
         if resized:

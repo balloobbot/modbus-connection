@@ -54,7 +54,11 @@ returns the decoded value or `None`. See
 Create a `RepeatingGroupField` describing repeated sub-components. `count` is a
 fixed `int` (must be `>= 0`; instances fold into the normal read) or a
 `RegisterField` read at poll time (a second read pass sizes the list).
-`stride` is the block length (must be `> 0`, or `ValueError`).
+`stride` is the block length (must be `> 0`, or `ValueError`). It may be a
+[`Placement`](#placement) callable instead of an `int`. The group is then
+placed in the second read pass, whatever its count. The callable is not called
+while the count is 0, and a resolved `stride` that is not `> 0` raises
+`ValueError` from the update.
 `count_in_block=False` reads a nested group's register count at the outermost
 layout's address instead of shifting it with each enclosing instance. Reading the
 attribute returns `list[C]` — the instances built on the last update. See
@@ -156,10 +160,19 @@ Instance attributes: `address`, `stride`, `writable` (always `False` on a
 
 The descriptor [`repeating_group()`](#repeating_groupcount-component_class--stride-count_in_blocktrue)
 returns. Instance attributes: `count` (an `int` or `RegisterField`),
-`component_class`, `stride`, `count_in_block`, and `name`. Reading it on a
-component instance returns `list[C]`.
+`component_class`, `stride` (an `int` or `Placement`), `count_in_block`, and
+`name`. `is_static` is `True` when the count and stride are fixed. Reading it
+on a component instance returns `list[C]`.
 
 ## Supporting types
+
+### `Placement`
+
+`Callable[[Any], int]` — a callable passed as a `repeating_group`'s `stride`.
+It receives the component that owns the outermost block (a
+`ManualComponent` when the group was added to one) after that component's
+fixed block has been read, and returns the resolved value. See
+[Placing a block the device sizes](/modbus-connection/modelling/repeats/#placing-a-block-the-device-sizes).
 
 ### `WriteValidator`
 

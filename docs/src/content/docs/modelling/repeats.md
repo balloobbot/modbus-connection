@@ -126,6 +126,43 @@ class VoltVar(Component):
 Without the flag, curve 1 would read its count at `35`. A device that answers
 `0` there silently gives it no points.
 
+## Placing a block the device sizes
+
+`stride` may be a callable instead of an `int`, for a block whose width is only
+known once the device has been read. The callable receives the component that
+owns the outermost block, after its fixed block has been read.
+
+In SunSpec model 705 each curve is a ten-register header followed by `NPt`
+points, and `NPt` is a point of the model. The sub-components declare their
+fields where the first instance has them, as any repeated block does:
+
+```python
+class VoltVarPt(Component):
+    v = int16(25)  # the first point follows the first curve's header
+    var = int16(26)
+
+
+class VoltVarCrv(Component):
+    act_pt = uint16(15)  # the first curve follows the fixed block
+    pt = repeating_group(uint16(5), VoltVarPt, stride=2, count_in_block=False)
+
+
+class VoltVar(Component):
+    n_pt = uint16(5)
+    n_crv = uint16(6)
+    crv = repeating_group(uint16(6), VoltVarCrv, stride=lambda m: 10 + 2 * m.n_pt)
+```
+
+A group with a callable `stride` is read in the second pass, like a
+register-counted group, even with a fixed `int` count. The trip models
+(707–710) use that: each curve holds three same-shaped regions of `1 + 3 * NPt`
+registers, so they are one `repeating_group(3, TripRegion, stride=_region)`,
+with a property per region for the spec's names. Such a group is empty until
+the first update. The callable runs on every poll. If its result changes, the
+instances are rebuilt where it now puts them. On a
+[`ManualComponent`](/modbus-connection/modelling/manual-component/) the
+callable receives the `ManualComponent`; read the values it needs with `get()`.
+
 ## Scale factors inside the block
 
 By default a scaled field's `scale_register` stays put across instances — it

@@ -762,6 +762,129 @@ async def test_nested_count_outside_the_block_at_base_offset() -> None:
     assert [[m.w for m in g.leaves] for g in outer.groups] == [[1], [3]]
 
 
+# -- callable stride ----------------------------------------------------------
+
+
+class Pt(Component):
+    v = uint16(3)  # the first point follows the first curve's label word
+
+
+class Curve(Component):
+    """A SunSpec-style curve: a label word, then NPt points."""
+
+    label = uint16(2)  # the first curve follows the two-word fixed block
+    # NPt is a point of the model, at model offset 1, whatever curve this is
+    pts = repeating_group(uint16(1), Pt, stride=1, count_in_block=False)
+
+
+class CurveModel(Component):
+    n_crv = uint16(0)
+    n_pt = uint16(1)
+    curves = repeating_group(uint16(0), Curve, stride=lambda m: 1 + m.n_pt)
+
+
+async def test_callable_stride_resolves_after_the_fixed_block_is_read() -> None:
+    unit = _unit()
+    # n_crv=2, n_pt=2 -> curve stride 3: curve 0 at 2 (pts 3-4), curve 1 at 5
+    unit.holding.update({0: 2, 1: 2, 2: 10, 3: 11, 4: 12, 5: 20, 6: 21, 7: 22})
+    model = CurveModel(unit)
+    await model.async_update()
+    assert [(c.label, [p.v for p in c.pts]) for c in model.curves] == [
+        (10, [11, 12]),
+        (20, [21, 22]),
+    ]
+
+
+async def test_callable_stride_rebuilds_when_it_changes() -> None:
+    unit = _unit()
+    unit.holding.update({0: 2, 1: 1, 2: 10, 3: 11, 4: 20, 5: 21})
+    model = CurveModel(unit)
+    await model.async_update()
+    assert [(c.label, [p.v for p in c.pts]) for c in model.curves] == [
+        (10, [11]),
+        (20, [21]),
+    ]
+
+    # the device now reports two points per curve, so curve 1 moves to 5
+    unit.holding.update({1: 2, 4: 12, 5: 20, 6: 21, 7: 22})
+    await model.async_update()
+    assert [(c.label, [p.v for p in c.pts]) for c in model.curves] == [
+        (10, [11, 12]),
+        (20, [21, 22]),
+    ]
+
+
+async def test_fixed_count_group_with_a_callable_stride_names_its_regions() -> None:
+    # Two same-shaped regions per curve, the second starting where the first
+    # ends. One fixed-count group with a callable stride places both, and
+    # properties name them.
+    def region(m: TripModel) -> int:
+        return 1 + m.n_pt
+
+    class Region(Component):
+        act = uint16(2)
+        pts = repeating_group(uint16(1), Pt, stride=1, count_in_block=False)
+
+    class Crv(Component):
+        regions = repeating_group(2, Region, stride=region)
+
+        @property
+        def must(self) -> Region:
+            return self.regions[0]
+
+        @property
+        def may(self) -> Region:
+            return self.regions[1]
+
+    class TripModel(Component):
+        n_crv = uint16(0)
+        n_pt = uint16(1)
+        crvs = repeating_group(uint16(0), Crv, stride=lambda m: 2 * region(m))
+
+    assert Crv._repeating_fields.keys() == {"regions"}
+
+    unit = _unit()
+    # n_pt=1 -> region 2 wide, crv 4 wide: crv 0 at 2 (must 2-3, may 4-5),
+    # crv 1 at 6 (must 6-7, may 8-9)
+    unit.holding.update({0: 2, 1: 1})
+    unit.holding.update({a: a * 10 for a in range(2, 10)})
+    model = TripModel(unit)
+    await model.async_update()
+    assert [
+        (c.must.act, c.must.pts[0].v, c.may.act, c.may.pts[0].v) for c in model.crvs
+    ] == [(20, 30, 40, 50), (60, 70, 80, 90)]
+
+
+async def test_stride_is_not_resolved_while_the_count_is_zero() -> None:
+    # An unimplemented n_pt would make the stride callable fail; with no
+    # curves to place, it is never called.
+    unit = _unit()
+    unit.holding.update({0: 0, 1: 0xFFFF})
+    model = CurveModel(unit)
+    await model.async_update()
+    assert model.curves == []
+
+
+async def test_a_non_positive_resolved_stride_raises() -> None:
+    class Model(Component):
+        n = uint16(0)
+        groups = repeating_group(1, Module, stride=lambda m: m.n)
+
+    unit = _unit()
+    model = Model(unit)
+    with pytest.raises(ValueError, match="'groups' stride resolved to 0"):
+        await model.async_update()
+
+
+async def test_callable_stride_refreshed_by_component_group() -> None:
+    unit = _unit()
+    unit.holding.update({0: 1, 1: 1, 2: 10, 3: 11})
+    model = CurveModel(unit)
+    group = ComponentGroup(unit, [model])
+    await group.async_update()
+    assert [(c.label, [p.v for p in c.pts]) for c in model.curves] == [(10, [11])]
+
+
 async def test_nested_dynamic_refreshes_on_recount() -> None:
     # The nested register-count group re-sizes on later polls, inside a
     # fixed-count parent instance.
@@ -816,8 +939,12 @@ async def test_restricting_a_dynamic_instance_reaches_the_pooled_plan() -> None:
     assert inv.modules[1].w == 95
 
 
-def test_factory_defaults_to_count_in_block() -> None:
-    assert repeating_group(uint16(8), Module, stride=20).count_in_block is True
+def test_factory_defaults() -> None:
+    field = repeating_group(uint16(8), Module, stride=20)
+    assert field.count_in_block is True
+    assert not field.is_static
+    assert repeating_group(2, Module, stride=20).is_static
+    assert not repeating_group(2, Module, stride=lambda m: 20).is_static
 
 
 def test_factory_validates() -> None:
