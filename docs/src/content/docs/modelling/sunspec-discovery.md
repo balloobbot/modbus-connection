@@ -99,11 +99,9 @@ class InverterThreePhase(SunSpecComponent):
     """Operating State."""
 ```
 
-A nested block whose count point sits in an outer block has no static
-address or stride. Model 705's `Pt` sits inside `Crv` but is counted by `NPt`
-in the fixed block. Pass the value your device reports with `--count`, and the
-generator emits the block as a fixed-count `repeating_group`. The curve models
-(705, 706, 712) and the trip models (707–710) need this:
+A block the device sizes, like model 705's curves, is sized at poll time by
+default. Pass `--count` when you know the values your device reports, as a
+device library does:
 
 ```bash
 python -m modbus_connection.model.sunspec.generate 705 707 \
@@ -111,12 +109,10 @@ python -m modbus_connection.model.sunspec.generate 705 707 \
     --count 707:NCrvSet=2 --count 707:NPt=5
 ```
 
-Without a count, the generator leaves the declaration as a comment that names
-the `--count` option to pass. It raises `SunSpecGenerationError` when a
-device-sized block is not the last block, because the blocks after it have no
-known address. The counts are baked into the generated classes. A device that
-reports different counts has a different model length, and `SunSpecComponent`
-rejects that header on the first read.
+The counts are then baked into fixed-count groups, which fold into the model's
+read instead of adding a pass. A device that reports different counts has a
+different model length, and `SunSpecComponent` rejects that header on the first
+read.
 
 ## Writing a curve
 
