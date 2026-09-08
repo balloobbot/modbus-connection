@@ -31,6 +31,12 @@ __all__ = [
 _TEARDOWN_GRACE = 0.5
 
 
+def _normalize_host(host: str) -> str:
+    """Fold the host to lower case without changing its IPv6 scope identifier."""
+    address, separator, scope = host.partition("%")
+    return address.lower() + separator + scope
+
+
 @dataclass(frozen=True, kw_only=True)
 class ModbusTcpParams:
     """Connection parameters for a Modbus TCP link."""
@@ -50,7 +56,7 @@ class ModbusTcpParams:
             raise ValueError(
                 f"unknown framer {self.framer!r}; expected 'socket', 'rtu', or 'ascii'"
             )
-        object.__setattr__(self, "host", self.host.lower())
+        object.__setattr__(self, "host", _normalize_host(self.host))
 
     @property
     def endpoint(self) -> tuple[str, str, int]:
@@ -81,7 +87,7 @@ class ModbusUdpParams:
             raise ValueError(
                 f"unknown framer {self.framer!r}; expected 'socket', 'rtu', or 'ascii'"
             )
-        object.__setattr__(self, "host", self.host.lower())
+        object.__setattr__(self, "host", _normalize_host(self.host))
 
     @property
     def endpoint(self) -> tuple[str, str, int]:
@@ -123,7 +129,7 @@ class ModbusTlsParams:
 
     def __post_init__(self) -> None:
         """Fold the host to lower case."""
-        object.__setattr__(self, "host", self.host.lower())
+        object.__setattr__(self, "host", _normalize_host(self.host))
 
     @property
     def endpoint(self) -> tuple[str, str, int]:
