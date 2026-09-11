@@ -54,6 +54,20 @@ def _socket_device(host: str, port: int) -> str:
     return f"socket://{host}:{port}"
 
 
+def warn_legacy_factory(factory: str, replacement: str) -> None:
+    """Warn that a ``connect_*`` factory is deprecated, naming what replaces it.
+
+    Called from the factory itself, so the warning lands on the caller's line
+    rather than inside this package.
+    """
+    warnings.warn(
+        f"{factory}() is deprecated. Construct ModbusConnection({replacement}) "
+        "with the same settings; the first request connects it.",
+        DeprecationWarning,
+        stacklevel=3,
+    )
+
+
 @dataclass(frozen=True, kw_only=True)
 class ModbusTcpParams:
     """Connection parameters for a Modbus TCP link."""

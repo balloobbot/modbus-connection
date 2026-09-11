@@ -24,6 +24,9 @@ from modbus_connection.pymodbus import connect_tcp as pymodbus_connect_tcp
 from modbus_connection.tmodbus import TmodbusConnection
 from modbus_connection.tmodbus import connect_tcp as tmodbus_connect_tcp
 
+# The connect_* factories are deprecated. This file calls them knowingly.
+pytestmark = pytest.mark.filterwarnings("ignore:connect_:DeprecationWarning")
+
 # -- pymodbus -----------------------------------------------------------------
 
 

@@ -14,6 +14,9 @@ from modbus_connection._client import BaseModbusConnection
 
 from .modbus_server import holding_store, serve_udp
 
+# The connect_* factories are deprecated. This file calls them knowingly.
+pytestmark = pytest.mark.filterwarnings("ignore:connect_:DeprecationWarning")
+
 UNIT_ID = 1
 
 backends = pytest.mark.parametrize(

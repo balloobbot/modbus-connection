@@ -18,9 +18,7 @@ from modbus_connection import (
     ModbusUnit,
 )
 from modbus_connection.pymodbus import PymodbusConnection
-from modbus_connection.pymodbus import connect_tcp as pymodbus_connect_tcp
 from modbus_connection.tmodbus import TmodbusConnection
-from modbus_connection.tmodbus import connect_tcp as tmodbus_connect_tcp
 
 from .conftest import (
     BUS_MESSAGE_COUNT,
@@ -39,9 +37,14 @@ BACKENDS = ["pymodbus", "tmodbus"]
 
 
 async def _connect(backend: str, host: str, port: int) -> ModbusConnection:
-    if backend == "pymodbus":
-        return await pymodbus_connect_tcp(host, port=port)
-    return await tmodbus_connect_tcp(host, port=port)
+    params = ModbusTcpParams(host=host, port=port)
+    connection: ModbusConnection = (
+        PymodbusConnection(params)
+        if backend == "pymodbus"
+        else TmodbusConnection(params)
+    )
+    await connection.connect()
+    return connection
 
 
 @pytest.fixture(params=BACKENDS)

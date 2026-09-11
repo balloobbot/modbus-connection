@@ -18,7 +18,14 @@ import pytest
 
 import modbus_connection.pymodbus as pymodbus_backend
 import modbus_connection.tmodbus as tmodbus_backend
-from modbus_connection import ModbusConnectionError, ModbusError
+from modbus_connection import (
+    ModbusConnectionError,
+    ModbusError,
+    ModbusSerialParams,
+    ModbusTcpParams,
+    ModbusTlsParams,
+    ModbusUdpParams,
+)
 from modbus_connection._protocol import ModbusUnit
 from modbus_connection.cli_helper import (
     CountingUnit,
@@ -40,6 +47,27 @@ from modbus_connection.model import (
     integer,
     repeating_group,
 )
+
+
+def _record_connections(
+    monkeypatch: pytest.MonkeyPatch, *backends: Any
+) -> dict[str, Any]:
+    """Capture the params and options each backend's connection is built with."""
+    calls: dict[str, Any] = {}
+
+    def recorder(name: str) -> Any:
+        class _Recorder:
+            def __init__(self, params: Any, **kwargs: Any) -> None:
+                calls.update(backend=name, params=params, kwargs=kwargs)
+
+            async def connect(self) -> None:
+                return None
+
+        return _Recorder
+
+    for backend in backends:
+        monkeypatch.setattr(backend, "ModbusConnection", recorder(backend.__name__))
+    return calls
 
 
 def _parse(argv: list[str]) -> argparse.Namespace:
@@ -102,56 +130,47 @@ def test_factory_signatures_accept_cli_kwargs() -> None:
             signature.bind("target", **kwargs, **common)  # TypeError on mismatch
 
 
+@pytest.mark.filterwarnings("ignore:ModbusTcpParams:DeprecationWarning")
 async def test_connect_from_args_dispatches_by_transport(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    calls: dict[str, Any] = {}
-
-    async def record(name: str, target: str, **kwargs: Any) -> str:
-        calls["name"], calls["target"], calls["kwargs"] = name, target, kwargs
-        return "conn"
-
-    for backend in (tmodbus_backend, pymodbus_backend):
-        for func in ("connect_tcp", "connect_udp", "connect_tls", "connect_serial"):
-            monkeypatch.setattr(
-                backend,
-                func,
-                lambda target, _f=func, _b=backend.__name__, **kw: record(
-                    f"{_b}.{_f}", target, **kw
-                ),
-            )
+    calls = _record_connections(monkeypatch, tmodbus_backend, pymodbus_backend)
 
     await connect_from_args(_parse(["/dev/ttyUSB0", "--transport", "serial"]))
-    assert calls["name"].endswith("tmodbus.connect_serial")
-    assert calls["target"] == "/dev/ttyUSB0"
-    assert calls["kwargs"]["baudrate"] == 9600
+    assert calls["backend"].endswith("tmodbus")
+    assert isinstance(calls["params"], ModbusSerialParams)
+    assert calls["params"].device == "/dev/ttyUSB0"
+    assert calls["params"].baudrate == 9600
 
     await connect_from_args(
         _parse(["dev.local", "--transport", "tls", "--tls-ca", "ca"])
     )
-    assert calls["name"].endswith("tmodbus.connect_tls")
-    assert calls["kwargs"]["verify"] == "ca"
+    assert calls["backend"].endswith("tmodbus")
+    assert isinstance(calls["params"], ModbusTlsParams)
+    assert calls["params"].verify == "ca"
 
     await connect_from_args(
         _parse(["dev.local", "--transport", "tls", "--tls-no-verify"])
     )
-    assert calls["kwargs"]["verify"] is False
+    assert calls["params"].verify is False
 
     await connect_from_args(_parse(["1.2.3.4", "--framer", "rtu", "--port", "1502"]))
-    assert calls["name"].endswith("tmodbus.connect_tcp")
-    assert calls["kwargs"]["framer"] == "rtu"
-    assert calls["kwargs"]["port"] == 1502
+    assert calls["backend"].endswith("tmodbus")
+    assert isinstance(calls["params"], ModbusTcpParams)
+    assert (calls["params"].host, calls["params"].port) == ("1.2.3.4", 1502)
+    assert calls["params"].framer == "rtu"
 
     await connect_from_args(_parse(["1.2.3.4", "--transport", "udp"]))
-    assert calls["name"].endswith("tmodbus.connect_udp")
+    assert calls["backend"].endswith("tmodbus")
+    assert isinstance(calls["params"], ModbusUdpParams)
 
     await connect_from_args(
         _parse(["1.2.3.4", "--transport", "udp", "--framer", "rtu"])
     )
-    assert calls["name"].endswith("pymodbus.connect_udp")
+    assert calls["backend"].endswith("pymodbus")
 
     await connect_from_args(_parse(["1.2.3.4", "--framer", "ascii"]))
-    assert calls["name"].endswith("pymodbus.connect_tcp")
+    assert calls["backend"].endswith("pymodbus")
 
 
 def test_unset_port_and_framer_left_to_backend() -> None:
@@ -210,15 +229,12 @@ async def test_connect_from_args_uses_pymodbus_when_tmodbus_absent(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setitem(sys.modules, "modbus_connection.tmodbus", None)
-    captured: dict[str, Any] = {}
+    calls = _record_connections(monkeypatch, pymodbus_backend)
 
-    async def fake(target: str, **kwargs: Any) -> str:
-        captured["target"] = target
-        return "conn"
+    await connect_from_args(_parse(["host"]))
 
-    monkeypatch.setattr(pymodbus_backend, "connect_tcp", lambda t, **k: fake(t, **k))
-    assert await connect_from_args(_parse(["host"])) == "conn"
-    assert captured["target"] == "host"
+    assert calls["backend"].endswith("pymodbus")
+    assert calls["params"].host == "host"
 
 
 async def test_connect_from_args_errors_without_backend(
@@ -276,35 +292,28 @@ def test_restricted_framers_limits_choices() -> None:
         parser.parse_args(["host", "--framer", "ascii"])  # dropped from choices
 
 
+@pytest.mark.filterwarnings("ignore:ModbusTcpParams:DeprecationWarning")
 async def test_fixed_framer_is_passed_to_connect(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    captured: dict[str, Any] = {}
-
-    async def fake(target: str, **kwargs: Any) -> str:
-        captured.update(kwargs)
-        return "conn"
-
-    monkeypatch.setattr(tmodbus_backend, "connect_tcp", lambda t, **k: fake(t, **k))
+    calls = _record_connections(monkeypatch, tmodbus_backend)
     parser = argparse.ArgumentParser()
     add_connection_args(parser, connections=(("tcp", "rtu"),))
+
     await connect_from_args(parser.parse_args(["host"]))
-    assert captured["framer"] == "rtu"
+
+    assert calls["params"].framer == "rtu"
 
 
 async def test_message_spacing_is_passed_through(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     # message_spacing is a device property the tool sets, not a CLI argument.
-    captured: dict[str, Any] = {}
+    calls = _record_connections(monkeypatch, tmodbus_backend)
 
-    async def fake(target: str, **kwargs: Any) -> str:
-        captured.update(kwargs)
-        return "conn"
-
-    monkeypatch.setattr(tmodbus_backend, "connect_tcp", lambda t, **k: fake(t, **k))
     await connect_from_args(_parse(["host"]), message_spacing=0.05)
-    assert captured["message_spacing"] == 0.05
+
+    assert calls["kwargs"]["message_spacing"] == 0.05
 
 
 def test_invalid_connections_raise() -> None:

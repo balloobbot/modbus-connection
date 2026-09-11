@@ -2,12 +2,17 @@
 
 from __future__ import annotations
 
+import pytest
+
 from modbus_connection import ModbusConnection, ModbusUnit
 from modbus_connection.mock import MockModbusConnection
 from modbus_connection.pymodbus import connect_tcp as pymodbus_connect_tcp
 from modbus_connection.tmodbus import connect_tcp as tmodbus_connect_tcp
 
 from .conftest import UNIT_ID
+
+# The connect_* factories are deprecated. This file calls them knowingly.
+pytestmark = pytest.mark.filterwarnings("ignore:connect_:DeprecationWarning")
 
 # ModbusConnection is the abstract connection base class — the backends and
 # the mock all subclass it — while ModbusUnit is a runtime_checkable Protocol

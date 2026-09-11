@@ -134,11 +134,12 @@ store by default. The options:
 - `sslctx` supplies a ready-made `ssl.SSLContext` that overrides the other
   options.
 
-:::note[Legacy connection factories]
+:::caution[Deprecated: the connection factories]
 The backend modules retain `connect_tcp`, `connect_udp`, `connect_tls`, and
-`connect_serial` for compatibility. They are no longer recommended. New code
-should construct the backend's `ModbusConnection` with a shared parameter
-object.
+`connect_serial` for compatibility. They are deprecated and warn, naming the
+parameter object that replaces them. Construct the backend's
+`ModbusConnection` with that object instead. The first request connects it,
+so nothing has to await a connect step.
 :::
 
 ## Device requirements
