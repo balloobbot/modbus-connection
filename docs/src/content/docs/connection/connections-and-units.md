@@ -114,11 +114,6 @@ ends. `rfc2217://` negotiates the line settings with the box as well.
 `ModbusTcpParams(framer="rtu")` and `ModbusTcpParams(framer="ascii")` name a
 serial server the other way round, and are deprecated. Construct one and it
 warns with the `ModbusSerialParams` that replaces it. They still work.
-
-The two spellings reach one serial line. Only the serial one says so, which
-is what stops a consumer that pools connections per device from opening a
-second link to a line already carrying frames. See
-[`endpoint`](/modbus-connection/connection/reference/#endpoint).
 :::
 
 The [reference](/modbus-connection/connection/reference/#parameter-dataclasses)
