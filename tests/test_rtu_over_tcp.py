@@ -13,6 +13,10 @@ from modbus_connection import ModbusTcpParams
 
 from .modbus_server import holding_store, serve_rtu_over_tcp, serve_stream
 
+# Every test here builds the deprecated spelling on purpose: the transport
+# it names still works, and goes on working until it is removed.
+pytestmark = pytest.mark.filterwarnings("ignore:ModbusTcpParams:DeprecationWarning")
+
 UNIT_ID = 246
 
 

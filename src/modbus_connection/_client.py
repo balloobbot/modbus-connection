@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import ssl
+import warnings
 from abc import ABC, abstractmethod
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -35,10 +36,22 @@ _DEFAULT_TIMEOUT = 10.0
 _TEARDOWN_GRACE = 0.5
 
 
+# RTU and ASCII frame a serial line. Carrying one over a socket is a serial
+# link on a socket transport, which both backends already reach through a
+# ``socket://`` serial device, so ``ModbusSerialParams`` is the spelling that
+# names it. ``ModbusTcpParams`` keeps accepting these framings for now.
+_SERIAL_FRAMINGS = ("rtu", "ascii")
+
+
 def _normalize_host(host: str) -> str:
     """Fold the host to lower case without changing its IPv6 scope identifier."""
     address, separator, scope = host.partition("%")
     return address.lower() + separator + scope
+
+
+def _socket_device(host: str, port: int) -> str:
+    """The serial device a socket transport to this host and port is spelled as."""
+    return f"socket://{host}:{port}"
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -55,20 +68,39 @@ class ModbusTcpParams:
     """Wire framing."""
 
     def __post_init__(self) -> None:
-        """Validate the wire framing."""
+        """Validate the wire framing, and warn for a deprecated serial one."""
         if self.framer not in ("socket", "rtu", "ascii"):
             raise ValueError(
                 f"unknown framer {self.framer!r}; expected 'socket', 'rtu', or 'ascii'"
             )
         object.__setattr__(self, "host", _normalize_host(self.host))
+        if self.framer in _SERIAL_FRAMINGS:
+            warnings.warn(
+                f"ModbusTcpParams(framer={self.framer!r}) is deprecated. "
+                f"{self.framer.upper()} frames a serial line, so carrying it "
+                "over a socket is a serial link: use "
+                f'ModbusSerialParams(device="'
+                f'{_socket_device(self.host, self.port)}", '
+                f"framer={self.framer!r}) instead.",
+                DeprecationWarning,
+                stacklevel=3,
+            )
 
     @property
-    def endpoint(self) -> tuple[str, str, int]:
-        """Hashable identity of the addressed device: transport, host, and port.
+    def endpoint(self) -> tuple[str, str, int] | tuple[str, str]:
+        """Hashable identity of the addressed device.
 
-        Two params objects with equal endpoints point at the same device even
-        when link settings such as ``framer`` differ.
+        Two params objects with equal endpoints point at the same device.
+        For the default ``socket`` framing this is the transport, host, and
+        port, and the other TCP settings do not change it.
+
+        A serial framing identifies the device as the serial line it is,
+        matching the ``ModbusSerialParams`` that names the same link. Those
+        two spellings reach one serial line, and a second connection to a
+        line carrying RTU interleaves frames on it.
         """
+        if self.framer in _SERIAL_FRAMINGS:
+            return ("serial", _socket_device(self.host, self.port))
         return ("tcp", self.host, self.port)
 
 

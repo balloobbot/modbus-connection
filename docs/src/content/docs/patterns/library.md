@@ -175,14 +175,15 @@ The consumer then works entirely in Python objects:
 
 ```python
 import asyncio
-from modbus_connection import ModbusTcpParams
+from modbus_connection import ModbusSerialParams
 from modbus_connection.tmodbus import ModbusConnection
 from my_device import MyDevice
 
 
 async def main() -> None:
+    # An RS-485 controller, here through a serial server on the network.
     connection = ModbusConnection(
-        ModbusTcpParams(host="192.168.1.50", port=502, framer="rtu")
+        ModbusSerialParams(device="socket://192.168.1.50:8899")
     )
     try:
         unit = connection.for_unit(246)

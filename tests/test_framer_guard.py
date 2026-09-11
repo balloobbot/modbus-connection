@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
+
 import pytest
 
 import modbus_connection.pymodbus as pymodbus_backend
@@ -29,6 +31,7 @@ def test_tmodbus_accepts_socket_udp_framing() -> None:
     assert conn.connected is False
 
 
+@pytest.mark.filterwarnings("ignore:ModbusTcpParams:DeprecationWarning")
 def test_tmodbus_accepts_ascii_over_tcp() -> None:
     # serialx's socket:// transport carries the ASCII framing over a socket.
     conn = tmodbus_backend.ModbusConnection(
@@ -37,18 +40,27 @@ def test_tmodbus_accepts_ascii_over_tcp() -> None:
     assert conn.connected is False
 
 
+# The params are built inside the test rather than in the parametrize list, so
+# the deprecated spelling warns where the filter below applies rather than at
+# collection time.
 @pytest.mark.parametrize(
-    "params",
+    "build_params",
     [
-        pytest.param(ModbusTcpParams(host="127.0.0.1", framer="ascii"), id="tcp-ascii"),
-        pytest.param(ModbusUdpParams(host="127.0.0.1"), id="udp"),
-        pytest.param(ModbusUdpParams(host="127.0.0.1", framer="rtu"), id="udp-rtu"),
         pytest.param(
-            ModbusSerialParams(device="/dev/null", framer="ascii"), id="serial-ascii"
+            lambda: ModbusTcpParams(host="127.0.0.1", framer="ascii"), id="tcp-ascii"
+        ),
+        pytest.param(lambda: ModbusUdpParams(host="127.0.0.1"), id="udp"),
+        pytest.param(
+            lambda: ModbusUdpParams(host="127.0.0.1", framer="rtu"), id="udp-rtu"
+        ),
+        pytest.param(
+            lambda: ModbusSerialParams(device="/dev/null", framer="ascii"),
+            id="serial-ascii",
         ),
     ],
 )
-def test_pymodbus_accepts_the_full_matrix(params: object) -> None:
+@pytest.mark.filterwarnings("ignore:ModbusTcpParams:DeprecationWarning")
+def test_pymodbus_accepts_the_full_matrix(build_params: Callable[[], object]) -> None:
     # Every params type — including the framings tmodbus rejects — constructs
     # without I/O on the pymodbus client.
-    assert pymodbus_backend.ModbusConnection(params).connected is False  # type: ignore[arg-type]
+    assert pymodbus_backend.ModbusConnection(build_params()).connected is False  # type: ignore[arg-type]

@@ -84,6 +84,7 @@ def connection_to(
         pytest.param("rtu", "create_async_rtu_over_tcp_client", id="rtu-over-tcp"),
     ],
 )
+@pytest.mark.filterwarnings("ignore:ModbusTcpParams:DeprecationWarning")
 async def test_scoped_host_reaches_client(
     monkeypatch: pytest.MonkeyPatch,
     framer: Literal["socket", "rtu"],
