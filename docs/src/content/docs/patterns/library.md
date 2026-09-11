@@ -181,7 +181,6 @@ from my_device import MyDevice
 
 
 async def main() -> None:
-    # An RS-485 controller, here through a serial server on the network.
     connection = ModbusConnection(
         ModbusSerialParams(device="socket://192.168.1.50:8899")
     )
