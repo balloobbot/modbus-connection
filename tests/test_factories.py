@@ -12,9 +12,6 @@ from modbus_connection import ModbusConnection, ModbusConnectionError
 
 from .conftest import UNIT_ID, drop_link
 
-# The connect_* factories are deprecated. This file calls them knowingly.
-pytestmark = pytest.mark.filterwarnings("ignore:connect_:DeprecationWarning")
-
 both_backends = pytest.mark.parametrize(
     "backend",
     [pymodbus_backend, tmodbus_backend],

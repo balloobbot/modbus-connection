@@ -6,7 +6,6 @@ import contextlib
 import functools
 import ssl
 import struct
-import warnings
 from collections.abc import Awaitable, Callable, Coroutine
 from typing import Any, Concatenate
 
@@ -39,7 +38,6 @@ from .._client import (
     ModbusTcpParams,
     ModbusTlsParams,
     ModbusUdpParams,
-    warn_legacy_factory,
 )
 from .._types import SerialFraming, SocketFraming
 from ..exceptions import (
@@ -457,17 +455,6 @@ class TmodbusUnit:
         await self._conn.disconnect()
 
 
-def _tcp_params(host: str, port: int, framer: SocketFraming) -> ModbusTcpParams:
-    """Build the params without raising their deprecation a second time.
-
-    ``connect_tcp`` has already warned, and with better advice: it knows the
-    caller reached the framing through this factory.
-    """
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore", DeprecationWarning)
-        return ModbusTcpParams(host=host, port=port, framer=framer)
-
-
 async def connect_tcp(
     host: str,
     *,
@@ -481,16 +468,12 @@ async def connect_tcp(
 
     Raises ``ModbusConnectionError`` if the connection cannot be established.
     """
-    warn_legacy_factory(
-        "connect_tcp",
-        # A serial framing migrates to the serial params, not to the TCP ones,
-        # so this factory names the replacement its own deprecation implies.
-        f'ModbusSerialParams(device="socket://{host}:{port}", framer={framer!r})'
-        if framer != "socket"
-        else f"ModbusTcpParams(host={host!r}, port={port})",
-    )
     connection = ModbusConnection(
-        _tcp_params(host, port, framer),
+        # Pass the framing on only where the caller chose one, so this
+        # factory's own default does not raise its deprecation warning.
+        ModbusTcpParams(
+            host=host, port=port, **({"framer": framer} if framer != "socket" else {})
+        ),
         timeout=timeout,
         message_spacing=message_spacing,
         connect_delay=connect_delay,
@@ -512,7 +495,6 @@ async def connect_udp(
 
     Raises ``ModbusConnectionError`` if the endpoint cannot be set up.
     """
-    warn_legacy_factory("connect_udp", f"ModbusUdpParams(host={host!r}, port={port})")
     connection = ModbusConnection(
         ModbusUdpParams(host=host, port=port, framer=framer),
         timeout=timeout,
@@ -541,7 +523,6 @@ async def connect_tls(
 
     Raises ``ModbusConnectionError`` if the connection cannot be established.
     """
-    warn_legacy_factory("connect_tls", f"ModbusTlsParams(host={host!r}, port={port})")
     connection = ModbusConnection(
         ModbusTlsParams(
             host=host,
@@ -577,7 +558,6 @@ async def connect_serial(
 
     Raises ``ModbusConnectionError`` on failure.
     """
-    warn_legacy_factory("connect_serial", f"ModbusSerialParams(device={port!r})")
     connection = ModbusConnection(
         ModbusSerialParams(
             device=port,

@@ -446,10 +446,9 @@ request error). New code should catch the typed class and read `.block`.
   — the old backend-specific names, kept for compatibility. New code should
   import `ModbusConnection` and type against the abstract
   `modbus_connection.ModbusConnection` and the `ModbusUnit` Protocol.
-- The factories `connect_tcp`, `connect_udp`, `connect_tls`, and
-  `connect_serial` — deprecated, and kept for compatibility. Each builds the
-  matching parameter dataclass from keyword arguments, also accepts the
-  constructor's `timeout`, `message_spacing`, and `connect_delay`, constructs
-  a `ModbusConnection`, eagerly `connect()`s it, and returns it. Each warns
-  with the parameter object that replaces it; construct `ModbusConnection`
-  with that instead.
+- The legacy factories `connect_tcp`, `connect_udp`, `connect_tls`, and
+  `connect_serial` — kept for compatibility. Each builds the matching parameter
+  dataclass from keyword arguments, also accepts the constructor's `timeout`,
+  `message_spacing`, and `connect_delay`, constructs a `ModbusConnection`,
+  eagerly `connect()`s it, and returns it. New code should construct
+  `ModbusConnection` with a shared parameter object instead.

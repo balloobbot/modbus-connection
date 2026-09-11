@@ -10,13 +10,7 @@ from collections.abc import Callable, Iterable
 from enum import Flag, IntEnum
 from typing import TYPE_CHECKING
 
-from ._client import (
-    BaseModbusConnection,
-    ModbusSerialParams,
-    ModbusTcpParams,
-    ModbusTlsParams,
-    ModbusUdpParams,
-)
+from ._client import BaseModbusConnection
 from ._protocol import ModbusUnit
 from .exceptions import ModbusError
 from .model import (
@@ -207,23 +201,25 @@ async def connect_from_args(
     ``ModbusConnectionError`` if the connection fails.
     """
     # Resolved lazily so the module (and --help) loads without any backend.
+    common = {"timeout": args.timeout, "message_spacing": message_spacing}
     # port/framer may be omitted for a narrowed argument set (see
     # add_connection_args); fall back to the backend default.
     port = getattr(args, "port", None)
     framer = getattr(args, "framer", None)
     backend = _load_backend(args.transport, framer)
 
-    params: ModbusSerialParams | ModbusTcpParams | ModbusTlsParams | ModbusUdpParams
     if args.transport == "serial":
-        params = ModbusSerialParams(
-            device=args.target,
+        return await backend.connect_serial(
+            args.target,
             baudrate=args.baudrate,
             bytesize=args.bytesize,
             parity=args.parity,
             stopbits=args.stopbits,
             **({"framer": framer} if framer else {}),
+            **common,
         )
-    elif args.transport == "tls":
+
+    if args.transport == "tls":
         verify: bool | str
         if args.tls_no_verify:
             verify = False
@@ -231,28 +227,24 @@ async def connect_from_args(
             verify = args.tls_ca
         else:
             verify = True
-        params = ModbusTlsParams(
-            host=args.target,
+        return await backend.connect_tls(
+            args.target,
             verify=verify,
             check_hostname=not args.tls_no_check_hostname,
             client_cert=args.tls_client_cert,
             client_key=args.tls_client_key,
             client_key_password=args.tls_client_key_password,
             **({"port": port} if port is not None else {}),
-        )
-    else:
-        build = ModbusUdpParams if args.transport == "udp" else ModbusTcpParams
-        params = build(
-            host=args.target,
-            **({"port": port} if port is not None else {}),
-            **({"framer": framer} if framer else {}),
+            **common,
         )
 
-    connection: BaseModbusConnection = backend.ModbusConnection(
-        params, timeout=args.timeout, message_spacing=message_spacing
+    connect = backend.connect_udp if args.transport == "udp" else backend.connect_tcp
+    return await connect(
+        args.target,
+        **({"port": port} if port is not None else {}),
+        **({"framer": framer} if framer else {}),
+        **common,
     )
-    await connection.connect()
-    return connection
 
 
 # -- read counting -----------------------------------------------------------
