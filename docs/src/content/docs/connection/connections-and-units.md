@@ -105,10 +105,10 @@ ModbusTcpParams(host="192.168.1.50", port=502)
 
 Both backends accept a URL as the serial device. Set `baudrate` to the speed
 the box runs its own line at. No UART is opened here, so nothing configures
-one, but RTU delimits frames by a silence of 3.5 character times and the
-client derives that gap from the baud rate. A line at 9600 needs 4 ms
-between frames where one at 19200 needs 2 ms. `rfc2217://` also negotiates
-the line settings with the box.
+one. The client uses the value to space frames: RTU separates them by 3.5
+character times, which is 4 ms at 9600 and 2 ms at 19200. A box forwarding
+bytes cannot add that gap itself, because it does not know where one frame
+ends. `rfc2217://` negotiates the line settings with the box as well.
 
 :::caution[Deprecated]
 `ModbusTcpParams(framer="rtu")` and `ModbusTcpParams(framer="ascii")` name a
