@@ -153,14 +153,6 @@ The coordinator's first read establishes the link. If the device is unreachable,
 that read fails, and `async_config_entry_first_refresh()` turns the failure into
 `ConfigEntryNotReady`. Home Assistant then retries setup for you.
 
-:::note[If your device needs a pause between frames]
-Set it on the unit with
-[`set_message_spacing()`](/modbus-connection/connection/connections-and-units/#request-spacing).
-The gap then applies to your device rather than to everything on a shared link,
-which is what you want when the link carries several units and only yours needs
-pacing.
-:::
-
 ## The coordinator
 
 `async_update()` returns an `UpdateReport` — which sub-systems refreshed, and

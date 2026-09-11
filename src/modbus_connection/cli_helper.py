@@ -158,8 +158,8 @@ def add_connection_args(
     group.add_argument(
         "--timeout",
         type=float,
-        default=10.0,
-        help="per-request timeout in seconds (default: 10)",
+        default=None,
+        help="per-request timeout in seconds (default: 10, or what a device asks)",
     )
 
     if serial_ok:
@@ -340,6 +340,12 @@ class CountingUnit:
 
     def set_message_spacing(self, seconds: float) -> None:
         self._unit.set_message_spacing(seconds)
+
+    def require_timeout(self, seconds: float | None) -> None:
+        self._unit.require_timeout(seconds)
+
+    def require_connect_delay(self, seconds: float | None) -> None:
+        self._unit.require_connect_delay(seconds)
 
     def on_connection_lost(self, callback: Callable[[], None]) -> Callable[[], None]:
         return self._unit.on_connection_lost(callback)

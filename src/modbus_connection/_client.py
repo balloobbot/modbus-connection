@@ -25,6 +25,10 @@ __all__ = [
     "ModbusUdpParams",
 ]
 
+# The per-request timeout applied when neither the caller nor any unit asks
+# for one. Message spacing and the connect delay default to none.
+_DEFAULT_TIMEOUT = 10.0
+
 # How long disconnect() and close() wait for the request in flight. A healthy
 # request answers in milliseconds, so this is long enough for one to finish and
 # short enough that a wedged request never holds up recycling the link.
@@ -198,6 +202,31 @@ class ModbusSerialParams:
         return ("serial", self.device)
 
 
+def _record(required: dict[int, float], unit_id: int, seconds: float | None) -> None:
+    """Store a unit's requirement, dropping it when the unit withdraws."""
+    if seconds is None:
+        required.pop(unit_id, None)
+    else:
+        required[unit_id] = seconds
+
+
+def _resolved(base: float | None, required: dict[int, float], default: float) -> float:
+    """The largest value asked for, or ``default`` when nothing was asked.
+
+    A default nobody chose must not outrank a unit asking for less.
+    """
+    asked = list(required.values())
+    if base is not None:
+        asked.append(base)
+    return max(asked, default=default)
+
+
+def _consume_failure(task: asyncio.Task[None]) -> None:
+    """Observe a fire-and-forget task's failure so asyncio does not warn."""
+    if not task.cancelled():
+        task.exception()
+
+
 def _target(
     params: ModbusTcpParams | ModbusUdpParams | ModbusTlsParams | ModbusSerialParams,
 ) -> str:
@@ -215,14 +244,23 @@ class BaseModbusConnection(ABC):
             ModbusTcpParams | ModbusUdpParams | ModbusTlsParams | ModbusSerialParams
         ),
         *,
-        timeout: float = 10,
-        message_spacing: float = 0.0,
-        connect_delay: float = 0.0,
+        timeout: float | None = None,
+        message_spacing: float | None = None,
+        connect_delay: float | None = None,
     ) -> None:
         self._params = params
-        self._timeout = timeout
-        self._pacer = Pacer(message_spacing)
-        self._connect_delay = connect_delay
+        self._pacer = Pacer(message_spacing or 0.0)
+        # What the caller asked the connection for; None where it asked for
+        # nothing.
+        self._base_timeout = timeout
+        self._base_connect_delay = connect_delay
+        self._unit_timeouts: dict[int, float] = {}
+        self._unit_connect_delays: dict[int, float] = {}
+        self._timeout = _DEFAULT_TIMEOUT if timeout is None else timeout
+        self._connect_delay = connect_delay or 0.0
+        # The timeout the live (or in-flight) backend client carries. It is
+        # built with the value, so raising it needs a new client.
+        self._client_timeout = self._timeout
         self._lost_callbacks = CallbackRegistry()
         self._target = _target(params)
         self._closed = False
@@ -260,6 +298,7 @@ class BaseModbusConnection(ABC):
             task.exception()
 
     async def _do_connect(self) -> None:
+        self._client_timeout = self._timeout
         client = await self._connect_client()
         if self._connect_delay:
             # Some devices need a pause after the link opens before they answer
@@ -283,6 +322,31 @@ class BaseModbusConnection(ABC):
     def on_connection_lost(self, callback: Callable[[], None]) -> Callable[[], None]:
         """Register a callback fired when the link drops; returns an unsubscribe."""
         return self._lost_callbacks.subscribe(callback)
+
+    def _require_timeout(self, unit_id: int, seconds: float | None) -> None:
+        """Raise the link's timeout to at least ``seconds`` for ``unit_id``."""
+        if seconds is not None and seconds < 0:
+            raise ValueError("timeout must be non-negative")
+        _record(self._unit_timeouts, unit_id, seconds)
+        self._timeout = _resolved(
+            self._base_timeout, self._unit_timeouts, _DEFAULT_TIMEOUT
+        )
+        if self._timeout > self._client_timeout and (
+            self._client is not None or self._connect_task is not None
+        ):
+            # A relaxed timeout can wait for the next connect. A raised one
+            # cannot: the unit that needs it would go on giving up early.
+            task = asyncio.create_task(self.disconnect())
+            task.add_done_callback(_consume_failure)
+
+    def _require_connect_delay(self, unit_id: int, seconds: float | None) -> None:
+        """Raise the link's connect delay to at least ``seconds`` for ``unit_id``."""
+        if seconds is not None and seconds < 0:
+            raise ValueError("connect_delay must be non-negative")
+        _record(self._unit_connect_delays, unit_id, seconds)
+        self._connect_delay = _resolved(
+            self._base_connect_delay, self._unit_connect_delays, 0.0
+        )
 
     async def disconnect(self) -> None:
         """Drop the link; the next request establishes a new one.
