@@ -76,9 +76,9 @@ ModbusSerialParams(device="socket://192.168.1.50:502")  # a serial line over TCP
 ModbusTlsParams(host="192.168.1.50", port=802, verify="/path/to/ca.pem")
 ```
 
-`framer` selects the wire framing. TCP and UDP accept `socket` (native Modbus),
-`rtu`, or `ascii`. Serial accepts `rtu` or `ascii`. TLS framing is fixed. Not
-every backend carries every framing — see
+`framer` selects the wire framing. Serial accepts `rtu` or `ascii`, and UDP
+accepts `socket` (native Modbus), `rtu`, or `ascii`. TCP and TLS framing is
+fixed. Not every backend carries every framing — see
 [Choosing a backend](/modbus-connection/getting-started/backends/).
 
 ### A serial line reached over the network
@@ -111,9 +111,11 @@ bytes cannot add that gap itself, because it does not know where one frame
 ends. `rfc2217://` negotiates the line settings with the box as well.
 
 :::caution[Deprecated]
-`ModbusTcpParams(framer="rtu")` and `ModbusTcpParams(framer="ascii")` name a
-serial server the other way round, and are deprecated. Construct one and it
-warns with the `ModbusSerialParams` that replaces it. They still work.
+`ModbusTcpParams` takes a `framer`, and passing one is deprecated. `rtu` and
+`ascii` name a serial server the other way round; the warning gives the
+`ModbusSerialParams` that replaces them. `socket` is the only framing a
+Modbus TCP link has, so it says nothing: omit the argument. Every value
+still works, and omitting it reads back as `socket`.
 :::
 
 The [reference](/modbus-connection/connection/reference/#parameter-dataclasses)

@@ -191,10 +191,32 @@ def test_a_serial_framing_over_tcp_is_deprecated(framer: str) -> None:
     assert caught[0].filename == __file__
 
 
-def test_the_socket_framing_is_not_deprecated() -> None:
+def test_passing_the_socket_framing_is_deprecated_too() -> None:
+    """It is the only framing a Modbus TCP link has, so it says nothing."""
+    with pytest.warns(DeprecationWarning) as caught:
+        ModbusTcpParams(host="dev.local", framer="socket")
+
+    assert "omit the argument" in str(caught[0].message)
+
+
+def test_omitting_the_framing_warns_nothing() -> None:
+    """And reads back as the framing a Modbus TCP link always has."""
     with warnings.catch_warnings():
         warnings.simplefilter("error")
-        assert ModbusTcpParams(host="dev.local").framer == "socket"
+        params = ModbusTcpParams(host="dev.local")
+
+    assert params.framer == "socket"
+    assert params.endpoint == ("tcp", "dev.local", 502)
+
+
+def test_omitting_the_framing_matches_passing_the_only_one() -> None:
+    """A consumer comparing params must not see the two as different."""
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", DeprecationWarning)
+        passed = ModbusTcpParams(host="dev.local", framer="socket")
+
+    assert passed == ModbusTcpParams(host="dev.local")
+    assert hash(passed) == hash(ModbusTcpParams(host="dev.local"))
 
 
 @pytest.mark.parametrize(

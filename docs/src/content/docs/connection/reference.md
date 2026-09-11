@@ -93,7 +93,7 @@ for usage guidance.
 | --- | --- | --- | --- |
 | `host` | `str` | required | Host name or IP address of the device. |
 | `port` | `int` | `502` | TCP port. |
-| `framer` | `"socket" \| "rtu" \| "ascii"` | `"socket"` | Wire framing: native Modbus TCP (MBAP), RTU, or ASCII. Any other value raises `ValueError`. `"rtu"` and `"ascii"` are deprecated and warn: they frame a serial line, which [`ModbusSerialParams`](#modbusserialparams) names with a `socket://` device. |
+| `framer` | `"socket" \| "rtu" \| "ascii" \| None` | `None` | Deprecated; omit it. Passing any value warns, and any value but these three raises `ValueError`. `"rtu"` and `"ascii"` frame a serial line, which [`ModbusSerialParams`](#modbusserialparams) names with a `socket://` device; `"socket"` is the only framing a Modbus TCP link has. Omitted, it reads back as `"socket"`. |
 
 ### `ModbusUdpParams`
 

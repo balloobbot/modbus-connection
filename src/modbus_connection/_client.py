@@ -64,27 +64,33 @@ class ModbusTcpParams:
     port: int = 502
     """TCP port."""
 
-    framer: Literal["socket", "rtu", "ascii"] = "socket"
-    """Wire framing."""
+    framer: Literal["socket", "rtu", "ascii"] | None = None
+    """Wire framing. Deprecated; omit it. Reads back as ``"socket"``."""
 
     def __post_init__(self) -> None:
-        """Validate the wire framing, and warn for a deprecated serial one."""
+        """Normalize the host, and warn for a framing that was passed."""
+        object.__setattr__(self, "host", _normalize_host(self.host))
+        if self.framer is None:
+            object.__setattr__(self, "framer", "socket")
+            return
         if self.framer not in ("socket", "rtu", "ascii"):
             raise ValueError(
                 f"unknown framer {self.framer!r}; expected 'socket', 'rtu', or 'ascii'"
             )
-        object.__setattr__(self, "host", _normalize_host(self.host))
         if self.framer in _SERIAL_FRAMINGS:
-            warnings.warn(
-                f"ModbusTcpParams(framer={self.framer!r}) is deprecated. "
-                f"{self.framer.upper()} frames a serial line, so carrying it "
-                "over a socket is a serial link: use "
-                f'ModbusSerialParams(device="'
-                f'{_socket_device(self.host, self.port)}", '
-                f"framer={self.framer!r}) instead.",
-                DeprecationWarning,
-                stacklevel=3,
+            advice = (
+                f"{self.framer.upper()} frames a serial line, so carrying it over "
+                "a socket is a serial link: use "
+                f'ModbusSerialParams(device="{_socket_device(self.host, self.port)}"'
+                f", framer={self.framer!r}) instead."
             )
+        else:
+            advice = "A Modbus TCP link is always MBAP-framed, so omit the argument."
+        warnings.warn(
+            f"ModbusTcpParams(framer={self.framer!r}) is deprecated. {advice}",
+            DeprecationWarning,
+            stacklevel=3,
+        )
 
     @property
     def endpoint(self) -> tuple[str, str, int] | tuple[str, str]:
