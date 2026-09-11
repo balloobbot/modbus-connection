@@ -90,14 +90,9 @@ class ModbusTcpParams:
     def endpoint(self) -> tuple[str, str, int] | tuple[str, str]:
         """Hashable identity of the addressed device.
 
-        Two params objects with equal endpoints point at the same device.
-        For the default ``socket`` framing this is the transport, host, and
-        port, and the other TCP settings do not change it.
-
-        A serial framing identifies the device as the serial line it is,
-        matching the ``ModbusSerialParams`` that names the same link. Those
-        two spellings reach one serial line, and a second connection to a
-        line carrying RTU interleaves frames on it.
+        Two params objects with equal endpoints point at the same device. A
+        serial framing gives the same identity as the ``ModbusSerialParams``
+        that names the same link.
         """
         if self.framer in _SERIAL_FRAMINGS:
             return ("serial", _socket_device(self.host, self.port))
