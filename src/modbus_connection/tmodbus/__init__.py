@@ -479,6 +479,9 @@ async def connect_tcp(
 ) -> ModbusConnection:
     """Open a Modbus TCP connection.
 
+    Deprecated: construct ``ModbusConnection`` with a ``ModbusTcpParams``, or
+    with a ``ModbusSerialParams`` where a serial framing named a serial server.
+
     Raises ``ModbusConnectionError`` if the connection cannot be established.
     """
     warn_legacy_factory(
@@ -510,6 +513,8 @@ async def connect_udp(
 ) -> ModbusConnection:
     """Open a Modbus UDP connection.
 
+    Deprecated: construct ``ModbusConnection`` with a ``ModbusUdpParams``.
+
     Raises ``ModbusConnectionError`` if the endpoint cannot be set up.
     """
     warn_legacy_factory("connect_udp", f"ModbusUdpParams(host={host!r}, port={port})")
@@ -538,6 +543,8 @@ async def connect_tls(
     connect_delay: float | None = None,
 ) -> ModbusConnection:
     """Open a Modbus/TLS connection.
+
+    Deprecated: construct ``ModbusConnection`` with a ``ModbusTlsParams``.
 
     Raises ``ModbusConnectionError`` if the connection cannot be established.
     """
@@ -574,6 +581,8 @@ async def connect_serial(
     connect_delay: float | None = None,
 ) -> ModbusConnection:
     """Open a Modbus serial connection.
+
+    Deprecated: construct ``ModbusConnection`` with a ``ModbusSerialParams``.
 
     Raises ``ModbusConnectionError`` on failure.
     """

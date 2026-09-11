@@ -138,8 +138,7 @@ store by default. The options:
 The backend modules retain `connect_tcp`, `connect_udp`, `connect_tls`, and
 `connect_serial` for compatibility. They are deprecated and warn, naming the
 parameter object that replaces them. Construct the backend's
-`ModbusConnection` with that object instead. The first request connects it,
-so nothing has to await a connect step.
+`ModbusConnection` with that object instead.
 :::
 
 ## Device requirements
