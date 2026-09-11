@@ -125,7 +125,7 @@ other parameters. The backends call this for you when connecting.
 
 | Field | Type | Default | Meaning |
 | --- | --- | --- | --- |
-| `device` | `str` | required | Serial port device path (e.g. `/dev/ttyUSB0`), or a URL both backends pass to pyserial or serialx: `socket://host:port`, `rfc2217://host:port`. |
+| `device` | `str` | required | Serial port device path (e.g. `/dev/ttyUSB0`), or a URL: `socket://host:port`, `rfc2217://host:port`. |
 | `baudrate` | `int` | `9600` | Line speed in baud. |
 | `bytesize` | `7 \| 8` | `8` | Data bits per character. |
 | `parity` | `"N" \| "E" \| "O"` | `"N"` | Parity: none, even, or odd. |
