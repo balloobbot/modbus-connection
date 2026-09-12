@@ -129,23 +129,10 @@ group, plus serial and TLS groups when those transports are offered. They read
 as a block in `--help` and stay clear of your CLI's own options — like the
 `--unit` you add yourself.
 
-By default it offers native Modbus TCP, and RTU on a serial line. The rest
-are rare enough that a tool reaching a device over one says so: UDP and TLS
-as transports, and ASCII as the serial framing where RTU is the one every
-device implements. Neither default transport is left with a framing to
-choose, so the CLI has no `--framer` until a caller asks for one.
-
-The arguments describe what is on offer. `target`'s help gives an example
-per transport, the serial one including the URL form that reaches a serial
-server, and `--port` names only the transports offered.
-
-That default already fits an RS-485 device. The serial transport covers a
-local adapter and a
-[serial server](/modbus-connection/connection/connections-and-units/#a-serial-line-reached-over-the-network)
-alike, since the target may be a `socket://` URL. The TCP transport covers a
-Modbus gateway, which answers Modbus TCP on the network and re-frames to RTU
-on the serial side. Keep both: a device on RS-485 says nothing about which
-box someone puts in front of it.
+By default it offers native Modbus TCP and RTU on a serial line, which is
+what a device on RS-485 needs. The serial target reaches a local adapter or a
+[serial server](/modbus-connection/connection/connections-and-units/#a-serial-line-reached-over-the-network),
+and the TCP one a Modbus gateway:
 
 ```bash
 python query.py /dev/ttyUSB0 --unit 246 --baudrate 19200
@@ -153,10 +140,11 @@ python query.py socket://192.168.1.50:8899 --unit 246 --baudrate 19200
 python query.py 192.168.1.50 --transport tcp --unit 246
 ```
 
-Pass `connections=` to narrow that, giving the `(transport, framer)` pairs
-your device supports, **most-used first**. `--transport` defaults to the
-first pair, and the CLI narrows to match. A device that only speaks native
-Modbus TCP then needs no `--transport`, `--framer` or serial options:
+Pass `connections=` the `(transport, framer)` pairs your device supports,
+**most-used first**, to narrow that or to offer UDP, TLS or ASCII.
+`--transport` defaults to the first pair, and the CLI narrows to match. A
+device that only speaks native Modbus TCP then needs no `--transport` or
+serial options:
 
 ```python
 add_connection_args(parser, connections=(("tcp", None),))

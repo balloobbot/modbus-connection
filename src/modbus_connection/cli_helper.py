@@ -44,14 +44,8 @@ _TRANSPORT_FRAMERS: dict[str, tuple[str, ...]] = {
     "tls": (),
     "serial": ("rtu", "ascii"),
 }
-# What a tool reaches for when it says nothing, in ``--help`` order: native
-# Modbus TCP, and RTU on a serial line. The rest are rare enough that a tool
-# supporting one says so, and passes whatever subset it supports (see
-# ``add_connection_args``). UDP and TLS are rare transports, ASCII is the
-# optional serial framing where RTU is the one every device implements, and a
-# serial framing over TCP is deprecated in favour of a socket:// serial target.
-# Neither transport is left with a framing to choose, so the default CLI has
-# no ``--framer`` at all.
+# What a tool reaches for when it says nothing. A caller wanting UDP, TLS or
+# ASCII passes it to ``add_connection_args``.
 _DEFAULT_CONNECTIONS: tuple[tuple[str, str | None], ...] = (
     ("tcp", None),
     ("serial", None),
