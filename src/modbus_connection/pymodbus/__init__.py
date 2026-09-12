@@ -445,7 +445,7 @@ async def connect_tcp(
     *,
     port: int = 502,
     timeout: float | None = None,
-    framer: SocketFraming = "socket",
+    framer: SocketFraming | None = None,
     message_spacing: float | None = None,
     connect_delay: float | None = None,
 ) -> ModbusConnection:

@@ -7,6 +7,7 @@ identity key.
 from __future__ import annotations
 
 import dataclasses
+import warnings
 
 import pytest
 
@@ -111,11 +112,6 @@ def test_params_are_keyword_only_and_hashable(
     ("left", "right"),
     [
         pytest.param(
-            ModbusTcpParams(host="dev.local", framer="socket"),
-            ModbusTcpParams(host="dev.local", framer="rtu"),
-            id="tcp-framer-ignored",
-        ),
-        pytest.param(
             ModbusTcpParams(host="Dev.LOCAL"),
             ModbusTcpParams(host="dev.local"),
             id="tcp-host-case-insensitive",
@@ -145,6 +141,96 @@ def test_params_are_keyword_only_and_hashable(
 def test_endpoint_same_device(left: Params, right: Params) -> None:
     assert left.endpoint == right.endpoint
     assert hash(left.endpoint) == hash(right.endpoint)
+
+
+@pytest.mark.parametrize("framer", ["rtu", "ascii"])
+@pytest.mark.filterwarnings("ignore::DeprecationWarning")
+def test_a_serial_framing_over_tcp_keys_as_the_serial_link_it_is(
+    framer: str,
+) -> None:
+    """The two spellings of one serial line over a socket share an endpoint.
+
+    A consumer that pools connections by endpoint then hands both the same
+    link. Two links to a line carrying RTU would interleave frames on it.
+    """
+    over_tcp = ModbusTcpParams(host="Dev.LOCAL", port=8899, framer=framer)  # type: ignore[arg-type]
+    over_serial = ModbusSerialParams(
+        device="socket://dev.local:8899",
+        framer=framer,  # type: ignore[arg-type]
+    )
+
+    assert over_tcp.endpoint == over_serial.endpoint
+    assert hash(over_tcp.endpoint) == hash(over_serial.endpoint)
+    assert over_tcp.endpoint == ("serial", "socket://dev.local:8899")
+
+
+@pytest.mark.parametrize("framer", ["rtu", "ascii"])
+@pytest.mark.filterwarnings("ignore::DeprecationWarning")
+def test_an_ipv6_host_is_bracketed_in_the_serial_endpoint(framer: str) -> None:
+    """The endpoint is a serial device URL, and an unbracketed IPv6 literal
+    makes one that cannot be parsed."""
+    params = ModbusTcpParams(host="FE80::1%enP3s0", port=1502, framer=framer)  # type: ignore[arg-type]
+
+    assert params.endpoint == ("serial", "socket://[fe80::1%enP3s0]:1502")
+    assert (
+        params.endpoint
+        == ModbusSerialParams(device="socket://[fe80::1%enP3s0]:1502").endpoint
+    )
+
+
+@pytest.mark.parametrize("framer", ["rtu", "ascii"])
+@pytest.mark.filterwarnings("ignore::DeprecationWarning")
+def test_a_serial_framing_is_a_different_endpoint_from_the_socket_framing(
+    framer: str,
+) -> None:
+    """One address, two services: a box forwarding a serial line is not the
+    same thing as a gateway answering Modbus TCP."""
+    serial_framed = ModbusTcpParams(host="dev.local", framer=framer)  # type: ignore[arg-type]
+    socket_framed = ModbusTcpParams(host="dev.local", framer="socket")
+
+    assert serial_framed.endpoint != socket_framed.endpoint
+    assert socket_framed.endpoint == ("tcp", "dev.local", 502)
+
+
+@pytest.mark.parametrize("framer", ["rtu", "ascii"])
+def test_a_serial_framing_over_tcp_is_deprecated(framer: str) -> None:
+    """The warning names the replacement, and points at the caller."""
+    with pytest.warns(DeprecationWarning) as caught:
+        ModbusTcpParams(host="dev.local", port=8899, framer=framer)  # type: ignore[arg-type]
+
+    assert len(caught) == 1
+    message = str(caught[0].message)
+    assert 'ModbusSerialParams(device="socket://dev.local:8899"' in message
+    assert f"framer={framer!r}" in message
+    assert caught[0].filename == __file__
+
+
+def test_passing_the_socket_framing_is_deprecated_too() -> None:
+    """It is the only framing a Modbus TCP link has, so it says nothing."""
+    with pytest.warns(DeprecationWarning) as caught:
+        ModbusTcpParams(host="dev.local", framer="socket")
+
+    assert "omit the argument" in str(caught[0].message)
+
+
+def test_omitting_the_framing_warns_nothing() -> None:
+    """And reads back as the framing a Modbus TCP link always has."""
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        params = ModbusTcpParams(host="dev.local")
+
+    assert params.framer == "socket"
+    assert params.endpoint == ("tcp", "dev.local", 502)
+
+
+def test_omitting_the_framing_matches_passing_the_only_one() -> None:
+    """A consumer comparing params must not see the two as different."""
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", DeprecationWarning)
+        passed = ModbusTcpParams(host="dev.local", framer="socket")
+
+    assert passed == ModbusTcpParams(host="dev.local")
+    assert hash(passed) == hash(ModbusTcpParams(host="dev.local"))
 
 
 @pytest.mark.parametrize(

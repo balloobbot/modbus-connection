@@ -70,16 +70,53 @@ from modbus_connection import (
 )
 
 ModbusTcpParams(host="192.168.1.50", port=502)  # native Modbus TCP
-ModbusTcpParams(host="192.168.1.50", framer="rtu")  # RTU over TCP
 ModbusUdpParams(host="192.168.1.50", port=502)
 ModbusSerialParams(device="/dev/ttyUSB0", framer="ascii", baudrate=9600)
+ModbusSerialParams(device="socket://192.168.1.50:502")  # a serial line over TCP
 ModbusTlsParams(host="192.168.1.50", port=802, verify="/path/to/ca.pem")
 ```
 
-`framer` selects the wire framing. TCP and UDP accept `socket` (native Modbus),
-`rtu`, or `ascii`. Serial accepts `rtu` or `ascii`. TLS framing is fixed. Not
-every backend carries every framing — see
+`framer` selects the wire framing. Serial accepts `rtu` or `ascii`, and UDP
+accepts `socket` (native Modbus), `rtu`, or `ascii`. TCP and TLS framing is
+fixed. Not every backend carries every framing — see
 [Choosing a backend](/modbus-connection/getting-started/backends/).
+
+### A serial line reached over the network
+
+RTU and ASCII frame a serial line. A box that puts such a line on the network
+does one of two things, and which one decides the parameters.
+
+A **serial server** forwards the line byte for byte. The frames on the network
+are the frames on the wire. This is a serial link on a socket transport, so it
+is `ModbusSerialParams` with a URL as the device:
+
+```python
+ModbusSerialParams(device="socket://192.168.1.50:8899")
+ModbusSerialParams(device="rfc2217://192.168.1.50:8899", baudrate=19200)
+```
+
+A **Modbus gateway** terminates Modbus TCP and re-frames to RTU on the serial
+side. The network carries native Modbus TCP, so this is `ModbusTcpParams` with
+the default framing:
+
+```python
+ModbusTcpParams(host="192.168.1.50", port=502)
+```
+
+Both backends accept a URL as the serial device. Set `baudrate` to the speed
+the box runs its own line at. No UART is opened here, so nothing configures
+one. The client uses the value to space frames: RTU separates them by 3.5
+character times, which is 4 ms at 9600 and 2 ms at 19200. A box forwarding
+bytes cannot add that gap itself, because it does not know where one frame
+ends. `rfc2217://` negotiates the line settings with the box as well.
+
+:::caution[Deprecated]
+`ModbusTcpParams` takes a `framer`, and passing one is deprecated. `rtu` and
+`ascii` name a serial server the other way round; the warning gives the
+`ModbusSerialParams` that replaces them. `socket` is the only framing a
+Modbus TCP link has, so it says nothing: omit the argument. Every value
+still works, and omitting it reads back as `socket`.
+:::
 
 The [reference](/modbus-connection/connection/reference/#parameter-dataclasses)
 lists every field and default. Timing is not a parameter: a device asks for

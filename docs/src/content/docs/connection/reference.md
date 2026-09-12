@@ -93,7 +93,7 @@ for usage guidance.
 | --- | --- | --- | --- |
 | `host` | `str` | required | Host name or IP address of the device. |
 | `port` | `int` | `502` | TCP port. |
-| `framer` | `"socket" \| "rtu" \| "ascii"` | `"socket"` | Wire framing: native Modbus TCP (MBAP), RTU-over-TCP, or ASCII-over-TCP. Any other value raises `ValueError`. |
+| `framer` | `"socket" \| "rtu" \| "ascii" \| None` | `None` | Deprecated; omit it. Passing any value warns, and any value but these three raises `ValueError`. `"rtu"` and `"ascii"` frame a serial line, which [`ModbusSerialParams`](#modbusserialparams) names with a `socket://` device; `"socket"` is the only framing a Modbus TCP link has. Omitted, it reads back as `"socket"`. |
 
 ### `ModbusUdpParams`
 
@@ -125,7 +125,7 @@ other parameters. The backends call this for you when connecting.
 
 | Field | Type | Default | Meaning |
 | --- | --- | --- | --- |
-| `device` | `str` | required | Serial port device path (e.g. `/dev/ttyUSB0`). |
+| `device` | `str` | required | Serial port device path (e.g. `/dev/ttyUSB0`), or a URL: `socket://host:port`, `rfc2217://host:port`. |
 | `baudrate` | `int` | `9600` | Line speed in baud. |
 | `bytesize` | `7 \| 8` | `8` | Data bits per character. |
 | `parity` | `"N" \| "E" \| "O"` | `"N"` | Parity: none, even, or odd. |
@@ -142,14 +142,21 @@ dictionary key for grouping shared connections:
 
 | Class | Endpoint | Excluded settings |
 | --- | --- | --- |
-| `ModbusTcpParams` | `("tcp", host, port)` | `framer` |
+| `ModbusTcpParams` | `("tcp", host, port)` | — |
+| `ModbusTcpParams`, deprecated `rtu` or `ascii` framing | `("serial", f"socket://{host}:{port}")` | — |
 | `ModbusUdpParams` | `("udp", host, port)` | `framer` |
 | `ModbusTlsParams` | `("tcp", host, port)` | all TLS options |
 | `ModbusSerialParams` | `("serial", device)` | `baudrate`, `bytesize`, `parity`, `stopbits`, `framer` |
 
 `ModbusTlsParams` deliberately shares the `"tcp"` transport tag: a TLS link and
 a plain-TCP link to the same host and port target the same TCP endpoint, and
-therefore the same device. A host is folded to lower case on construction,
+therefore the same device.
+
+A [deprecated serial framing over TCP](/modbus-connection/connection/connections-and-units/#a-serial-line-reached-over-the-network)
+is the one case where `framer` changes the endpoint. It names a serial line,
+so its endpoint is the serial one, matching the `ModbusSerialParams` that
+spells the same link. A gateway answering native Modbus TCP at that address
+is a different service and keeps the `"tcp"` endpoint. A host is folded to lower case on construction,
 since DNS names and IPv6 hex digits are case-insensitive. The serial device
 path is compared verbatim. Aliases of the same port (a `/dev/serial/by-id`
 symlink versus `/dev/ttyUSB0`) are not resolved.

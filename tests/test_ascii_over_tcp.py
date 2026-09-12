@@ -19,6 +19,10 @@ from modbus_connection import ModbusTcpParams
 from modbus_connection.pymodbus import ModbusConnection
 from modbus_connection.tmodbus import ModbusConnection as TmodbusConnection
 
+# Every test here builds the deprecated spelling on purpose: the transport
+# it names still works, and goes on working until it is removed.
+pytestmark = pytest.mark.filterwarnings("ignore:ModbusTcpParams:DeprecationWarning")
+
 UNIT_ID = 1
 
 

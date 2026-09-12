@@ -132,12 +132,22 @@ as a block in `--help` and stay clear of your CLI's own options — like the
 By default it offers every transport and framing. Pass `connections=` the
 `(transport, framer)` pairs your device actually supports, **most-used first**.
 `--transport` defaults to the first pair, and the CLI narrows to match. A
-device that only speaks RTU-over-TCP then needs no serial, TLS, `--transport`
-or `--framer` options:
+device that only speaks native Modbus TCP then needs no serial, TLS,
+`--transport` or `--framer` options:
 
 ```python
-# Only RTU-over-TCP: no --transport flag, --framer fixed to rtu, no serial/TLS args.
-add_connection_args(parser, connections=(("tcp", "rtu"),))
+# Only native Modbus TCP: no --transport flag, no --framer, no serial/TLS args.
+add_connection_args(parser, connections=(("tcp", "socket"),))
+```
+
+An RS-485 device is `("serial", "rtu")`. That one pair covers a local adapter
+and a
+[serial server](/modbus-connection/connection/connections-and-units/#a-serial-line-reached-over-the-network)
+alike, since the target may be a `socket://` URL:
+
+```bash
+python query.py /dev/ttyUSB0 --unit 246 --baudrate 19200
+python query.py socket://192.168.1.50:8899 --unit 246
 ```
 
 A `None` framer means the backend default (and is required for TLS).
