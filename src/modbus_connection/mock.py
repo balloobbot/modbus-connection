@@ -101,6 +101,16 @@ class MockModbusConnection(BaseModbusConnection):
         self._lost_callbacks.fire()
 
 
+def _address(address: int | str) -> int:
+    """One address of a raw snapshot, however it survived being written down."""
+    try:
+        return int(address)
+    except ValueError:
+        raise ValueError(
+            f"address {address!r} in raw snapshot is not a number"
+        ) from None
+
+
 class MockModbusUnit:
     """Implement ``ModbusUnit`` with in-memory stores."""
 
@@ -216,18 +226,23 @@ class MockModbusUnit:
         """Set a canned response for an operation."""
         self._responses[method] = value
 
-    def load_raw(self, raw: Mapping[str, Mapping[int, int | bool]]) -> None:
+    def load_raw(self, raw: Mapping[str, Mapping[int | str, int | bool]]) -> None:
         """Load an ``async_read_raw`` snapshot into the stores.
 
-        Raises ``ValueError`` for an unknown address space.
+        An address may be a string. A snapshot reaches a test through a bug
+        report, and JSON has no integer keys, so the addresses come back as
+        the strings it wrote.
+
+        Raises ``ValueError`` for an unknown address space, and for an
+        address that is not a number.
         """
         registers = {"holding": self.holding, "input": self.input}
         bits = {"coil": self.coils, "discrete": self.discrete_inputs}
         for space, values in raw.items():
             if space in registers:
-                registers[space].update(values)
+                registers[space].update({_address(a): v for a, v in values.items()})
             elif space in bits:
-                bits[space].update({addr: bool(v) for addr, v in values.items()})
+                bits[space].update({_address(a): bool(v) for a, v in values.items()})
             else:
                 raise ValueError(f"unknown space {space!r} in raw snapshot")
 
