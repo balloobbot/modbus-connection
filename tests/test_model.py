@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import struct
 from collections.abc import Callable
 from enum import IntEnum, IntFlag
@@ -2174,6 +2175,39 @@ async def test_read_raw_snapshot_replays_into_a_mock_via_load_raw() -> None:
     holding = Holding(dst)
     await holding.async_update()
     assert holding.a == 11
+
+
+async def test_read_raw_snapshot_replays_after_a_trip_through_json() -> None:
+    """A snapshot reaches a test through a bug report, and JSON writes every
+    address down as a string."""
+
+    class Holding(Component):
+        a = integer(0, signed=False)
+
+    class Bits(Component):
+        on = coil(0)
+
+    src = MockModbusConnection().for_unit(1)
+    src.holding[0] = 11
+    src.coils[0] = True
+    raw = await ComponentGroup(src, [Holding(src), Bits(src)]).async_read_raw()
+
+    dst = MockModbusConnection().for_unit(1)
+    dst.load_raw(json.loads(json.dumps(raw)))
+
+    holding, bits = Holding(dst), Bits(dst)
+    await holding.async_update()
+    await bits.async_update()
+    assert holding.a == 11
+    assert bits.on is True
+    # And the replay is the snapshot again, addresses and all.
+    assert await ComponentGroup(dst, [Holding(dst), Bits(dst)]).async_read_raw() == raw
+
+
+async def test_load_raw_rejects_an_address_that_is_not_a_number() -> None:
+    unit = MockModbusConnection().for_unit(1)
+    with pytest.raises(ValueError, match="is not a number"):
+        unit.load_raw({"holding": {"0x10": 1}})
 
 
 async def test_load_raw_rejects_an_unknown_space() -> None:
