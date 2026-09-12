@@ -140,15 +140,31 @@ device that only speaks native Modbus TCP then needs no serial, TLS,
 add_connection_args(parser, connections=(("tcp", "socket"),))
 ```
 
-An RS-485 device is `("serial", "rtu")`. That one pair covers a local adapter
+An RS-485 device takes two pairs. The serial transport covers a local adapter
 and a
 [serial server](/modbus-connection/connection/connections-and-units/#a-serial-line-reached-over-the-network)
-alike, since the target may be a `socket://` URL:
+alike, since the target may be a `socket://` URL. The TCP transport covers a
+Modbus gateway, which answers Modbus TCP on the network and re-frames to RTU
+on the serial side. Reach for both: a device on RS-485 says nothing about
+which box someone puts in front of it.
+
+Give each a `None` framer. Every transport here has one framing, so a `None`
+takes it and the CLI needs no `--framer`:
+
+```python
+# A local adapter, a serial server, or a Modbus gateway.
+add_connection_args(parser, connections=(("serial", None), ("tcp", None)))
+```
 
 ```bash
 python query.py /dev/ttyUSB0 --unit 246 --baudrate 19200
-python query.py socket://192.168.1.50:8899 --unit 246
+python query.py socket://192.168.1.50:8899 --unit 246 --baudrate 19200
+python query.py 192.168.1.50 --transport tcp --unit 246
 ```
+
+Naming the framings instead, as `(("serial", "rtu"), ("tcp", "socket"))`,
+offers a `--framer` with both values on both transports. A caller can then
+ask for `--transport tcp --framer rtu`, which is not a pair the CLI was given.
 
 A `None` framer means the backend default (and is required for TLS).
 `connect_from_args` reads the parser this produces, so the two always stay in
