@@ -111,11 +111,9 @@ cannot add that gap, because it does not know where a frame ends.
 `rfc2217://` also negotiates the line settings with the box.
 
 :::caution[Deprecated]
-`ModbusTcpParams` takes a `framer`, and passing one is deprecated. `rtu` and
-`ascii` describe a serial server as a TCP link; the warning names the
-`ModbusSerialParams` that replaces them. `socket` is the only framing a
-Modbus TCP link has, so passing it adds nothing. Every value still works,
-and omitting the argument reads back as `socket`.
+Passing `framer` to `ModbusTcpParams` is deprecated. Use
+`ModbusSerialParams` with a `socket://` device for `rtu` and `ascii`, and
+drop the argument for `socket`. All three still work.
 :::
 
 The [reference](/modbus-connection/connection/reference/#parameter-dataclasses)

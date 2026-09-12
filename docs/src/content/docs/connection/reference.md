@@ -93,7 +93,7 @@ for usage guidance.
 | --- | --- | --- | --- |
 | `host` | `str` | required | Host name or IP address of the device. |
 | `port` | `int` | `502` | TCP port. |
-| `framer` | `"socket" \| "rtu" \| "ascii" \| None` | `None` | Deprecated; omit it. Passing any value warns, and any value but these three raises `ValueError`. `"rtu"` and `"ascii"` frame a serial line, which [`ModbusSerialParams`](#modbusserialparams) names with a `socket://` device; `"socket"` is the only framing a Modbus TCP link has. Omitted, it reads back as `"socket"`. |
+| `framer` | `"socket" \| "rtu" \| "ascii" \| None` | `None` | Deprecated; omit it. Passing any value warns, and any value but these three raises `ValueError`. `"rtu"` and `"ascii"` frame a serial line; use [`ModbusSerialParams`](#modbusserialparams) with a `socket://` device instead. `"socket"` is the only framing a Modbus TCP link has. Omitted, it reads back as `"socket"`. |
 
 ### `ModbusUdpParams`
 
@@ -153,9 +153,9 @@ a plain-TCP link to the same host and port target the same TCP endpoint, and
 therefore the same device.
 
 A [deprecated serial framing over TCP](/modbus-connection/connection/connections-and-units/#a-serial-line-reached-over-the-network)
-is the one case where `framer` changes the endpoint. It names a serial line,
-so it takes the serial endpoint, the same one `ModbusSerialParams` gives for
-that link. A gateway answering native Modbus TCP at that address is a
+is the one case where `framer` changes the endpoint. Such a link is a serial
+line, so it takes the serial endpoint, the same one `ModbusSerialParams`
+gives for it. A gateway answering native Modbus TCP at that address is a
 different service, and keeps the `"tcp"` endpoint.
 
 A host is folded to lower case on construction, since DNS names and IPv6 hex
