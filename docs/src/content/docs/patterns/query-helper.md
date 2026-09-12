@@ -122,10 +122,12 @@ Percent-encode the `noise_psk` or `password` value. A base64 key can contain
 
 ## Dumping the registers undecoded
 
-A modelled value can be wrong in a way its printed form does not show. A
-mistaken word order reads as a plausible number, and a register the spec
-describes twice reads as whichever was believed. Give the script a `--raw`
-flag that prints what the device actually sent:
+A wrong field decodes to a plausible value. A 32-bit number read in the wrong
+word order is still a number. A register that two parts of a spec describe
+differently decodes to whichever reading the model took. Neither shows up in
+the printed value.
+
+Add a `--raw` flag that prints the registers as the device returned them:
 
 ```python
 parser.add_argument(
@@ -136,10 +138,9 @@ if args.raw:
     print(json.dumps(await device.async_read_raw(), indent=2, sort_keys=True))
 ```
 
-An issue then carries the device's own answer rather than your library's
-reading of it, and
+An issue can then quote the registers, not the values you decoded from them.
 [`load_raw`](/modbus-connection/patterns/testing/#replaying-a-raw-snapshot)
-turns that answer into a test with no hardware in the room.
+loads the dump into the mock, so the report becomes a test.
 
 ## The building blocks
 
