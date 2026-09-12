@@ -129,8 +129,15 @@ group, plus serial and TLS groups when those transports are offered. They read
 as a block in `--help` and stay clear of your CLI's own options — like the
 `--unit` you add yourself.
 
-By default it offers TCP and serial. UDP and TLS are rare, so a tool that
-reaches a device over one says so.
+By default it offers native Modbus TCP, and RTU on a serial line. The rest
+are rare enough that a tool reaching a device over one says so: UDP and TLS
+as transports, and ASCII as the serial framing where RTU is the one every
+device implements. Neither default transport is left with a framing to
+choose, so the CLI has no `--framer` until a caller asks for one.
+
+The arguments describe what is on offer. `target`'s help gives an example
+per transport, the serial one including the URL form that reaches a serial
+server, and `--port` names only the transports offered.
 
 That default already fits an RS-485 device. The serial transport covers a
 local adapter and a

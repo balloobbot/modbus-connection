@@ -65,14 +65,18 @@ def _parse_any(argv: list[str]) -> argparse.Namespace:
 
 
 def test_the_default_offers_tcp_and_serial() -> None:
-    """UDP and TLS are rare, so a tool that reaches one over them says so."""
+    """Everything else is rare enough that a tool supporting it says so."""
     parser = argparse.ArgumentParser()
     add_connection_args(parser)
 
-    usage = parser.format_usage()
-    assert "--transport {tcp,serial}" in " ".join(usage.split())
-    # TCP has one framing left, so a serial framing over it cannot be picked.
-    assert "--framer {rtu,ascii}" in " ".join(usage.split())
+    usage = " ".join(parser.format_usage().split())
+    assert "--transport {tcp,serial}" in usage
+    # One framing each, so there is nothing to choose between.
+    assert "--framer" not in usage
+    # The serial line settings are still needed to reach a serial device.
+    assert "--baudrate" in usage
+    # The port help names TCP alone, since UDP and TLS are not on offer.
+    assert "TCP port (default: 502)" in parser.format_help()
     for option in ("--tls-ca", "--tls-no-verify"):
         assert option not in usage
 
@@ -197,7 +201,35 @@ def test_unset_port_and_framer_left_to_backend() -> None:
     # Left unset so the backend default applies rather than being forced here.
     args = _parse(["dev.local"])
     assert args.port is None
-    assert args.framer is None
+    # Nothing offers a framing choice by default, so there is nothing to unset.
+    assert getattr(args, "framer", None) is None
+
+
+@pytest.mark.parametrize(
+    ("connections", "expected"),
+    [
+        pytest.param(None, ("192.168.1.50", "/dev/ttyUSB0", "socket://"), id="default"),
+        pytest.param(
+            (("serial", None),), ("/dev/ttyUSB0", "socket://"), id="serial-only"
+        ),
+        pytest.param((("tcp", None),), ("192.168.1.50",), id="tcp-only"),
+    ],
+)
+def test_the_target_help_shows_what_the_offered_transports_take(
+    connections: object, expected: tuple[str, ...]
+) -> None:
+    """Including the URL form, which is how a serial target reaches a server."""
+    parser = argparse.ArgumentParser()
+    if connections is None:
+        add_connection_args(parser)
+    else:
+        add_connection_args(parser, connections=connections)  # type: ignore[arg-type]
+
+    help_text = parser.format_help()
+    for example in expected:
+        assert example in help_text
+    if connections == (("tcp", None),):
+        assert "/dev/ttyUSB0" not in help_text
 
 
 # -- backend detection --------------------------------------------------------

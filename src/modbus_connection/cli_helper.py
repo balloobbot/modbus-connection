@@ -44,14 +44,17 @@ _TRANSPORT_FRAMERS: dict[str, tuple[str, ...]] = {
     "tls": (),
     "serial": ("rtu", "ascii"),
 }
-# What a tool reaches for when it says nothing, in ``--help`` order. UDP and
-# TLS are rare enough that a tool supporting them says so; a caller passes
-# whatever subset it supports (see ``add_connection_args``). TCP offers no
-# framing choice because a serial framing over it is deprecated, and the
-# serial transport reaches the same devices.
+# What a tool reaches for when it says nothing, in ``--help`` order: native
+# Modbus TCP, and RTU on a serial line. The rest are rare enough that a tool
+# supporting one says so, and passes whatever subset it supports (see
+# ``add_connection_args``). UDP and TLS are rare transports, ASCII is the
+# optional serial framing where RTU is the one every device implements, and a
+# serial framing over TCP is deprecated in favour of a socket:// serial target.
+# Neither transport is left with a framing to choose, so the default CLI has
+# no ``--framer`` at all.
 _DEFAULT_CONNECTIONS: tuple[tuple[str, str | None], ...] = (
     ("tcp", None),
-    *(("serial", f) for f in ("rtu", "ascii")),
+    ("serial", None),
 )
 
 
@@ -120,13 +123,19 @@ def add_connection_args(
     serial_ok = "serial" in transports
     tls_ok = "tls" in transports
 
+    # What a target may look like, for the transports actually offered. The
+    # serial one takes a URL as well as a port path, which is how it reaches a
+    # serial server, so a reader should not have to find that out elsewhere.
     net_names = [t for t in ("tcp", "udp", "tls") if t in transports]
+    serial_help = "a serial port or URL (/dev/ttyUSB0, socket://192.168.1.50:8899)"
     if net_names and serial_ok:
-        target_help = f"host or IP for {'/'.join(net_names)}, or the serial device path"
+        target_help = (
+            f"host or IP for {'/'.join(net_names)} (192.168.1.50), or {serial_help}"
+        )
     elif serial_ok:
-        target_help = "serial device path, e.g. /dev/ttyUSB0"
+        target_help = serial_help
     else:
-        target_help = "host or IP of the device"
+        target_help = "host or IP of the device (192.168.1.50)"
 
     primary = transports[0]
     group = parser.add_argument_group("Modbus connection")
@@ -141,12 +150,17 @@ def add_connection_args(
     else:
         parser.set_defaults(transport=primary)
     if network or tls_ok:
-        group.add_argument(
-            "--port",
-            type=int,
-            default=None,
-            help="TCP/UDP/TLS port (default: 502 for tcp/udp, 802 for tls)",
-        )
+        # Name only the transports on offer, and the default that follows.
+        if net_names == ["tls"]:
+            port_help = "TLS port (default: 802)"
+        elif "tls" in net_names:
+            port_help = (
+                f"{'/'.join(n.upper() for n in net_names)} port "
+                "(default: 502 for tcp/udp, 802 for tls)"
+            )
+        else:
+            port_help = f"{'/'.join(n.upper() for n in net_names)} port (default: 502)"
+        group.add_argument("--port", type=int, default=None, help=port_help)
     if len(framer_choices) > 1:
         group.add_argument(
             "--framer",
