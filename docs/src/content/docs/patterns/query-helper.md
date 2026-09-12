@@ -129,25 +129,25 @@ group, plus serial and TLS groups when those transports are offered. They read
 as a block in `--help` and stay clear of your CLI's own options — like the
 `--unit` you add yourself.
 
-By default it offers every transport and framing. Pass `connections=` the
-`(transport, framer)` pairs your device actually supports, **most-used first**.
-`--transport` defaults to the first pair, and the CLI narrows to match. A
-device that only speaks native Modbus TCP then needs no serial, TLS,
-`--transport` or `--framer` options:
-
-```python
-# Only native Modbus TCP: no --transport flag, no --framer, no serial/TLS args.
-add_connection_args(parser, connections=(("tcp", "socket"),))
-```
-
-An RS-485 device is `("serial", "rtu")`. That one pair covers a local adapter
-and a
-[serial server](/modbus-connection/connection/connections-and-units/#a-serial-line-reached-over-the-network)
-alike, since the target may be a `socket://` URL:
+By default it offers native Modbus TCP and RTU on a serial line, which is
+what a device on RS-485 needs. The serial target reaches a local adapter or a
+[serial server](/modbus-connection/connection/connections-and-units/#a-serial-line-reached-over-the-network),
+and the TCP one a Modbus gateway:
 
 ```bash
 python query.py /dev/ttyUSB0 --unit 246 --baudrate 19200
-python query.py socket://192.168.1.50:8899 --unit 246
+python query.py socket://192.168.1.50:8899 --unit 246 --baudrate 19200
+python query.py 192.168.1.50 --transport tcp --unit 246
+```
+
+Pass `connections=` the `(transport, framer)` pairs your device supports,
+**most-used first**, to narrow that or to offer UDP, TLS or ASCII.
+`--transport` defaults to the first pair, and the CLI narrows to match. A
+device that only speaks native Modbus TCP then needs no `--transport` or
+serial options:
+
+```python
+add_connection_args(parser, connections=(("tcp", None),))
 ```
 
 A `None` framer means the backend default (and is required for TLS).

@@ -41,11 +41,52 @@ from modbus_connection.model import (
     repeating_group,
 )
 
+# Every transport and framing, which is more than the default offers.
+_EVERY_CONNECTION: tuple[tuple[str, str | None], ...] = (
+    *(("tcp", f) for f in ("socket", "rtu", "ascii")),
+    *(("udp", f) for f in ("socket", "rtu", "ascii")),
+    ("tls", None),
+    *(("serial", f) for f in ("rtu", "ascii")),
+)
 
-def _parse(argv: list[str]) -> argparse.Namespace:
+
+def _parse(argv: list[str], connections: object = None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser()
+    if connections is None:
+        add_connection_args(parser)
+    else:
+        add_connection_args(parser, connections=connections)  # type: ignore[arg-type]
+    return parser.parse_args(argv)
+
+
+def _parse_any(argv: list[str]) -> argparse.Namespace:
+    """Parse against every connection, for the transports the default omits."""
+    return _parse(argv, _EVERY_CONNECTION)
+
+
+def test_the_default_offers_tcp_and_serial() -> None:
+    """Everything else is rare enough that a tool supporting it says so."""
     parser = argparse.ArgumentParser()
     add_connection_args(parser)
-    return parser.parse_args(argv)
+
+    usage = " ".join(parser.format_usage().split())
+    assert "--transport {tcp,serial}" in usage
+    # One framing each, so there is nothing to choose between.
+    assert "--framer" not in usage
+    # The serial line settings are still needed to reach a serial device.
+    assert "--baudrate" in usage
+    # The port help names TCP alone, since UDP and TLS are not on offer.
+    assert "TCP port (default: 502)" in parser.format_help()
+    for option in ("--tls-ca", "--tls-no-verify"):
+        assert option not in usage
+
+
+def test_a_transport_outside_the_default_is_rejected() -> None:
+    parser = argparse.ArgumentParser()
+    add_connection_args(parser)
+
+    with pytest.raises(SystemExit):
+        parser.parse_args(["dev.local", "--transport", "udp"])
 
 
 # -- connect_from_args --------------------------------------------------------
@@ -127,30 +168,32 @@ async def test_connect_from_args_dispatches_by_transport(
     assert calls["kwargs"]["baudrate"] == 9600
 
     await connect_from_args(
-        _parse(["dev.local", "--transport", "tls", "--tls-ca", "ca"])
+        _parse_any(["dev.local", "--transport", "tls", "--tls-ca", "ca"])
     )
     assert calls["name"].endswith("tmodbus.connect_tls")
     assert calls["kwargs"]["verify"] == "ca"
 
     await connect_from_args(
-        _parse(["dev.local", "--transport", "tls", "--tls-no-verify"])
+        _parse_any(["dev.local", "--transport", "tls", "--tls-no-verify"])
     )
     assert calls["kwargs"]["verify"] is False
 
-    await connect_from_args(_parse(["1.2.3.4", "--framer", "rtu", "--port", "1502"]))
+    await connect_from_args(
+        _parse_any(["1.2.3.4", "--framer", "rtu", "--port", "1502"])
+    )
     assert calls["name"].endswith("tmodbus.connect_tcp")
     assert calls["kwargs"]["framer"] == "rtu"
     assert calls["kwargs"]["port"] == 1502
 
-    await connect_from_args(_parse(["1.2.3.4", "--transport", "udp"]))
+    await connect_from_args(_parse_any(["1.2.3.4", "--transport", "udp"]))
     assert calls["name"].endswith("tmodbus.connect_udp")
 
     await connect_from_args(
-        _parse(["1.2.3.4", "--transport", "udp", "--framer", "rtu"])
+        _parse_any(["1.2.3.4", "--transport", "udp", "--framer", "rtu"])
     )
     assert calls["name"].endswith("pymodbus.connect_udp")
 
-    await connect_from_args(_parse(["1.2.3.4", "--framer", "ascii"]))
+    await connect_from_args(_parse_any(["1.2.3.4", "--framer", "ascii"]))
     assert calls["name"].endswith("pymodbus.connect_tcp")
 
 
@@ -158,7 +201,35 @@ def test_unset_port_and_framer_left_to_backend() -> None:
     # Left unset so the backend default applies rather than being forced here.
     args = _parse(["dev.local"])
     assert args.port is None
-    assert args.framer is None
+    # Nothing offers a framing choice by default, so there is nothing to unset.
+    assert getattr(args, "framer", None) is None
+
+
+@pytest.mark.parametrize(
+    ("connections", "expected"),
+    [
+        pytest.param(None, ("192.168.1.50", "/dev/ttyUSB0", "socket://"), id="default"),
+        pytest.param(
+            (("serial", None),), ("/dev/ttyUSB0", "socket://"), id="serial-only"
+        ),
+        pytest.param((("tcp", None),), ("192.168.1.50",), id="tcp-only"),
+    ],
+)
+def test_the_target_help_shows_what_the_offered_transports_take(
+    connections: object, expected: tuple[str, ...]
+) -> None:
+    """Including the URL form, which is how a serial target reaches a server."""
+    parser = argparse.ArgumentParser()
+    if connections is None:
+        add_connection_args(parser)
+    else:
+        add_connection_args(parser, connections=connections)  # type: ignore[arg-type]
+
+    help_text = parser.format_help()
+    for example in expected:
+        assert example in help_text
+    if connections == (("tcp", None),):
+        assert "/dev/ttyUSB0" not in help_text
 
 
 # -- backend detection --------------------------------------------------------
