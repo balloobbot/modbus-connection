@@ -102,7 +102,7 @@ class MockModbusConnection(BaseModbusConnection):
 
 
 def _address(address: int | str) -> int:
-    """One address of a raw snapshot, however it survived being written down."""
+    """One address of a raw snapshot, as a number whether or not it is one."""
     try:
         return int(address)
     except ValueError:
@@ -228,10 +228,6 @@ class MockModbusUnit:
 
     def load_raw(self, raw: Mapping[str, Mapping[int | str, int | bool]]) -> None:
         """Load an ``async_read_raw`` snapshot into the stores.
-
-        An address may be a string. A snapshot reaches a test through a bug
-        report, and JSON has no integer keys, so the addresses come back as
-        the strings it wrote.
 
         Raises ``ValueError`` for an unknown address space, and for an
         address that is not a number.
