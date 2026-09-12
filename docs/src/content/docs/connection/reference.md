@@ -154,12 +154,14 @@ therefore the same device.
 
 A [deprecated serial framing over TCP](/modbus-connection/connection/connections-and-units/#a-serial-line-reached-over-the-network)
 is the one case where `framer` changes the endpoint. It names a serial line,
-so its endpoint is the serial one, matching the `ModbusSerialParams` that
-spells the same link. A gateway answering native Modbus TCP at that address
-is a different service and keeps the `"tcp"` endpoint. A host is folded to lower case on construction,
-since DNS names and IPv6 hex digits are case-insensitive. The serial device
-path is compared verbatim. Aliases of the same port (a `/dev/serial/by-id`
-symlink versus `/dev/ttyUSB0`) are not resolved.
+so it takes the serial endpoint, the same one `ModbusSerialParams` gives for
+that link. A gateway answering native Modbus TCP at that address is a
+different service, and keeps the `"tcp"` endpoint.
+
+A host is folded to lower case on construction, since DNS names and IPv6 hex
+digits are case-insensitive. The serial device path is compared verbatim.
+Aliases of the same port (a `/dev/serial/by-id` symlink versus
+`/dev/ttyUSB0`) are not resolved.
 
 Equal endpoints with **unequal params** signal conflicting configurations for
 one device — for example two serial configs for `/dev/ttyUSB0` at different
