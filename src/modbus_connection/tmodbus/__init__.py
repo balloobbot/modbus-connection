@@ -467,7 +467,7 @@ async def connect_tcp(
     *,
     port: int = 502,
     timeout: float | None = None,
-    framer: SocketFraming = "socket",
+    framer: SocketFraming | None = None,
     message_spacing: float | None = None,
     connect_delay: float | None = None,
 ) -> ModbusConnection:
@@ -476,11 +476,7 @@ async def connect_tcp(
     Raises ``ModbusConnectionError`` if the connection cannot be established.
     """
     connection = ModbusConnection(
-        # Pass the framing on only where the caller chose one, so this
-        # factory's own default does not raise its deprecation warning.
-        ModbusTcpParams(
-            host=host, port=port, **({"framer": framer} if framer != "socket" else {})
-        ),
+        ModbusTcpParams(host=host, port=port, framer=framer),
         timeout=timeout,
         message_spacing=message_spacing,
         connect_delay=connect_delay,
