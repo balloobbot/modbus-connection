@@ -15,7 +15,6 @@ from tmodbus import (
     AsyncModbusClient,
     create_async_ascii_client,
     create_async_rtu_client,
-    create_async_rtu_over_tcp_client,
     create_async_tcp_client,
     create_async_udp_client,
 )
@@ -38,6 +37,7 @@ from .._client import (
     ModbusTcpParams,
     ModbusTlsParams,
     ModbusUdpParams,
+    _socket_device,
 )
 from .._types import SerialFraming, SocketFraming
 from ..exceptions import (
@@ -66,8 +66,11 @@ __all__ = [
 # for I/O; we give it a fixed placeholder that ``for_unit`` always overrides.
 _PLACEHOLDER_UNIT_ID = 1
 # serialx ignores the line settings on a socket:// transport, but tmodbus's
-# ascii client requires a baudrate.
-_UNUSED_BAUDRATE = 9600
+# serial clients require a baudrate. For RTU it also sets the inter-frame gap,
+# so this is high enough to land on tmodbus's 1.75 ms floor, which is the gap
+# the rtu-over-tcp client applied. A caller that knows the line speed states it
+# with ModbusSerialParams, and gets the gap that speed calls for.
+_SOCKET_BAUDRATE = 115200
 
 # Repeats tmodbus's own bounds; ``reraise`` is what we are after, so an
 # exhausted retry surfaces the device's busy response rather than a timeout.
@@ -200,25 +203,29 @@ class ModbusConnection(BaseModbusConnection):
     async def _create_client(self) -> AsyncModbusClient:
         params = self._params
         if isinstance(params, ModbusTcpParams):
-            if params.framer == "ascii":
-                # ASCII has no socket-framed client: it is the serial framing,
-                # carried over a socket by serialx's socket:// transport. The
-                # serial line settings are inert on a socket.
-                return create_async_ascii_client(
-                    f"socket://{params.host}:{params.port}",
+            if params.framer in ("rtu", "ascii"):
+                # A serial framing over a socket is a serial link, so it takes
+                # the serial client over a socket:// device — the same path a
+                # ModbusSerialParams takes, which is what these deprecated
+                # framings tell the caller to use. tmodbus has an RTU-over-TCP
+                # client too, but it cannot be given an inter-frame gap
+                # (wlcrs/tmodbus#145), so nothing here needs it.
+                create_serial = (
+                    create_async_rtu_client
+                    if params.framer == "rtu"
+                    else create_async_ascii_client
+                )
+                return create_serial(
+                    _socket_device(params.host, params.port),
                     unit_id=_PLACEHOLDER_UNIT_ID,
-                    baudrate=_UNUSED_BAUDRATE,
+                    baudrate=_SOCKET_BAUDRATE,
                     timeout=self._timeout,
                     auto_reconnect=False,
                     response_retry_strategy=_RESPONSE_RETRIES,
                     retry_on_device_failure=False,
                     on_connection_lost=self._on_connection_lost,
                 )
-            if params.framer == "socket":
-                create = create_async_tcp_client
-            else:
-                create = create_async_rtu_over_tcp_client
-            return create(
+            return create_async_tcp_client(
                 params.host,
                 params.port,
                 unit_id=_PLACEHOLDER_UNIT_ID,
