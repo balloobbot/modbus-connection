@@ -130,34 +130,29 @@ as a block in `--help` and stay clear of your CLI's own options — like the
 `--unit` you add yourself.
 
 By default it offers TCP and serial. UDP and TLS are rare, so a tool that
-reaches a device over one says so. Pass `connections=` the
-`(transport, framer)` pairs your device actually supports, **most-used first**.
-`--transport` defaults to the first pair, and the CLI narrows to match. A
-device that only speaks native Modbus TCP then needs no serial, TLS,
-`--transport` or `--framer` options:
+reaches a device over one says so.
 
-```python
-# Only native Modbus TCP: no --transport flag, no serial args.
-add_connection_args(parser, connections=(("tcp", None),))
-```
-
-An RS-485 device takes two pairs. The serial transport covers a local adapter
-and a
+That default already fits an RS-485 device. The serial transport covers a
+local adapter and a
 [serial server](/modbus-connection/connection/connections-and-units/#a-serial-line-reached-over-the-network)
 alike, since the target may be a `socket://` URL. The TCP transport covers a
 Modbus gateway, which answers Modbus TCP on the network and re-frames to RTU
-on the serial side. Reach for both: a device on RS-485 says nothing about
-which box someone puts in front of it.
-
-```python
-# A local adapter, a serial server, or a Modbus gateway.
-add_connection_args(parser, connections=(("serial", None), ("tcp", None)))
-```
+on the serial side. Keep both: a device on RS-485 says nothing about which
+box someone puts in front of it.
 
 ```bash
 python query.py /dev/ttyUSB0 --unit 246 --baudrate 19200
 python query.py socket://192.168.1.50:8899 --unit 246 --baudrate 19200
 python query.py 192.168.1.50 --transport tcp --unit 246
+```
+
+Pass `connections=` to narrow that, giving the `(transport, framer)` pairs
+your device supports, **most-used first**. `--transport` defaults to the
+first pair, and the CLI narrows to match. A device that only speaks native
+Modbus TCP then needs no `--transport`, `--framer` or serial options:
+
+```python
+add_connection_args(parser, connections=(("tcp", None),))
 ```
 
 A `None` framer means the backend default (and is required for TLS).
