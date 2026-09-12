@@ -129,15 +129,16 @@ group, plus serial and TLS groups when those transports are offered. They read
 as a block in `--help` and stay clear of your CLI's own options — like the
 `--unit` you add yourself.
 
-By default it offers every transport and framing. Pass `connections=` the
+By default it offers TCP and serial. UDP and TLS are rare, so a tool that
+reaches a device over one says so. Pass `connections=` the
 `(transport, framer)` pairs your device actually supports, **most-used first**.
 `--transport` defaults to the first pair, and the CLI narrows to match. A
 device that only speaks native Modbus TCP then needs no serial, TLS,
 `--transport` or `--framer` options:
 
 ```python
-# Only native Modbus TCP: no --transport flag, no --framer, no serial/TLS args.
-add_connection_args(parser, connections=(("tcp", "socket"),))
+# Only native Modbus TCP: no --transport flag, no serial args.
+add_connection_args(parser, connections=(("tcp", None),))
 ```
 
 An RS-485 device takes two pairs. The serial transport covers a local adapter

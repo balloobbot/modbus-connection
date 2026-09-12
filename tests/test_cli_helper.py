@@ -41,11 +41,48 @@ from modbus_connection.model import (
     repeating_group,
 )
 
+# Every transport and framing, which is more than the default offers.
+_EVERY_CONNECTION: tuple[tuple[str, str | None], ...] = (
+    *(("tcp", f) for f in ("socket", "rtu", "ascii")),
+    *(("udp", f) for f in ("socket", "rtu", "ascii")),
+    ("tls", None),
+    *(("serial", f) for f in ("rtu", "ascii")),
+)
 
-def _parse(argv: list[str]) -> argparse.Namespace:
+
+def _parse(argv: list[str], connections: object = None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser()
+    if connections is None:
+        add_connection_args(parser)
+    else:
+        add_connection_args(parser, connections=connections)  # type: ignore[arg-type]
+    return parser.parse_args(argv)
+
+
+def _parse_any(argv: list[str]) -> argparse.Namespace:
+    """Parse against every connection, for the transports the default omits."""
+    return _parse(argv, _EVERY_CONNECTION)
+
+
+def test_the_default_offers_tcp_and_serial() -> None:
+    """UDP and TLS are rare, so a tool that reaches one over them says so."""
     parser = argparse.ArgumentParser()
     add_connection_args(parser)
-    return parser.parse_args(argv)
+
+    usage = parser.format_usage()
+    assert "--transport {tcp,serial}" in " ".join(usage.split())
+    # TCP has one framing left, so a serial framing over it cannot be picked.
+    assert "--framer {rtu,ascii}" in " ".join(usage.split())
+    for option in ("--tls-ca", "--tls-no-verify"):
+        assert option not in usage
+
+
+def test_a_transport_outside_the_default_is_rejected() -> None:
+    parser = argparse.ArgumentParser()
+    add_connection_args(parser)
+
+    with pytest.raises(SystemExit):
+        parser.parse_args(["dev.local", "--transport", "udp"])
 
 
 # -- connect_from_args --------------------------------------------------------
@@ -127,30 +164,32 @@ async def test_connect_from_args_dispatches_by_transport(
     assert calls["kwargs"]["baudrate"] == 9600
 
     await connect_from_args(
-        _parse(["dev.local", "--transport", "tls", "--tls-ca", "ca"])
+        _parse_any(["dev.local", "--transport", "tls", "--tls-ca", "ca"])
     )
     assert calls["name"].endswith("tmodbus.connect_tls")
     assert calls["kwargs"]["verify"] == "ca"
 
     await connect_from_args(
-        _parse(["dev.local", "--transport", "tls", "--tls-no-verify"])
+        _parse_any(["dev.local", "--transport", "tls", "--tls-no-verify"])
     )
     assert calls["kwargs"]["verify"] is False
 
-    await connect_from_args(_parse(["1.2.3.4", "--framer", "rtu", "--port", "1502"]))
+    await connect_from_args(
+        _parse_any(["1.2.3.4", "--framer", "rtu", "--port", "1502"])
+    )
     assert calls["name"].endswith("tmodbus.connect_tcp")
     assert calls["kwargs"]["framer"] == "rtu"
     assert calls["kwargs"]["port"] == 1502
 
-    await connect_from_args(_parse(["1.2.3.4", "--transport", "udp"]))
+    await connect_from_args(_parse_any(["1.2.3.4", "--transport", "udp"]))
     assert calls["name"].endswith("tmodbus.connect_udp")
 
     await connect_from_args(
-        _parse(["1.2.3.4", "--transport", "udp", "--framer", "rtu"])
+        _parse_any(["1.2.3.4", "--transport", "udp", "--framer", "rtu"])
     )
     assert calls["name"].endswith("pymodbus.connect_udp")
 
-    await connect_from_args(_parse(["1.2.3.4", "--framer", "ascii"]))
+    await connect_from_args(_parse_any(["1.2.3.4", "--framer", "ascii"]))
     assert calls["name"].endswith("pymodbus.connect_tcp")
 
 

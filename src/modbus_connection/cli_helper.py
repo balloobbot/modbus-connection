@@ -44,12 +44,13 @@ _TRANSPORT_FRAMERS: dict[str, tuple[str, ...]] = {
     "tls": (),
     "serial": ("rtu", "ascii"),
 }
-# Every valid ``(transport, framer)`` connection, in ``--help`` order. A caller
-# passes the subset it supports (see ``add_connection_args``).
+# What a tool reaches for when it says nothing, in ``--help`` order. UDP and
+# TLS are rare enough that a tool supporting them says so; a caller passes
+# whatever subset it supports (see ``add_connection_args``). TCP offers no
+# framing choice because a serial framing over it is deprecated, and the
+# serial transport reaches the same devices.
 _DEFAULT_CONNECTIONS: tuple[tuple[str, str | None], ...] = (
-    *(("tcp", f) for f in _FRAMERS),
-    *(("udp", f) for f in _FRAMERS),
-    ("tls", None),
+    ("tcp", None),
     *(("serial", f) for f in ("rtu", "ascii")),
 )
 
