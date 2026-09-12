@@ -50,8 +50,13 @@ def _normalize_host(host: str) -> str:
 
 
 def _socket_device(host: str, port: int) -> str:
-    """The serial device a socket transport to this host and port is spelled as."""
-    return f"socket://{host}:{port}"
+    """The serial device a socket transport to this host and port is spelled as.
+
+    An IPv6 literal is bracketed. Without the brackets the URL does not parse,
+    because the address's own colons are read as the port separator.
+    """
+    address = f"[{host}]" if ":" in host else host
+    return f"socket://{address}:{port}"
 
 
 @dataclass(frozen=True, kw_only=True)

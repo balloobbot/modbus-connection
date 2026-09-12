@@ -166,6 +166,20 @@ def test_a_serial_framing_over_tcp_keys_as_the_serial_link_it_is(
 
 @pytest.mark.parametrize("framer", ["rtu", "ascii"])
 @pytest.mark.filterwarnings("ignore::DeprecationWarning")
+def test_an_ipv6_host_is_bracketed_in_the_serial_endpoint(framer: str) -> None:
+    """The endpoint is a serial device URL, and an unbracketed IPv6 literal
+    makes one that cannot be parsed."""
+    params = ModbusTcpParams(host="FE80::1%enP3s0", port=1502, framer=framer)  # type: ignore[arg-type]
+
+    assert params.endpoint == ("serial", "socket://[fe80::1%enP3s0]:1502")
+    assert (
+        params.endpoint
+        == ModbusSerialParams(device="socket://[fe80::1%enP3s0]:1502").endpoint
+    )
+
+
+@pytest.mark.parametrize("framer", ["rtu", "ascii"])
+@pytest.mark.filterwarnings("ignore::DeprecationWarning")
 def test_a_serial_framing_is_a_different_endpoint_from_the_socket_framing(
     framer: str,
 ) -> None:

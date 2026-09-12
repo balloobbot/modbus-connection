@@ -89,13 +89,13 @@ def connection_to(
         pytest.param(
             "rtu",
             "create_async_rtu_client",
-            ("socket://fe80::1%enP3s0:1502",),
+            ("socket://[fe80::1%enP3s0]:1502",),
             id="rtu-over-socket",
         ),
         pytest.param(
             "ascii",
             "create_async_ascii_client",
-            ("socket://fe80::1%enP3s0:1502",),
+            ("socket://[fe80::1%enP3s0]:1502",),
             id="ascii-over-socket",
         ),
     ],
